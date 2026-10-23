@@ -6,13 +6,14 @@ export const TIER_COLORS = ['gray', 'orange', 'red', 'blue', 'purple', 'gold'];
 // Lower bound of each tier, relative to the starting rating (matches server/elo.js).
 export const TIER_OFFSETS = [null, -80, 0, 80, 160, 240];
 
+// Real hands/cards from each game, in increasing strength.
 export const RANK_NAMES = {
   bridge: ['♣ Clubs', '♦ Diamonds', '♥ Hearts', '♠ Spades', 'No Trump', 'Grand Slam'],
-  mahjong: ['🎁 Tile Donor', '🐔 Chicken Hand', '🀄 Pung Pal', '🀫 Kong Artist', '🐉 Dragon Lord', '👑 Thirteen Wonders'],
-  daidi: ['😵 Stuck With 13', '3♦ Opener', '👯 Pair Pusher', '📏 Straight Shooter', '💣 Bomb Squad', '2♠ Big Two'],
-  bluff: ['📖 Open Book', '😰 Sweaty Palms', '😐 Poker Face', '🐍 Smooth Liar', '🎭 Con Artist', '🤥 Pathological'],
-  poker: ['🐴 Donkey', '🐟 Fish', '📞 Calling Station', '⚙️ Grinder', '🦈 Shark', '👑 Royal Flush'],
-  uno: ['🤐 Forgot to Say UNO', '⏭ Skipped', '🔄 Reverse', '+2 Menace', '+4 Villain', '🌈 Wild Card'],
+  mahjong: ['Chicken Hand', 'Ping Hu', 'Half Flush', 'All Pungs', 'Full Flush', 'Thirteen Wonders'],
+  daidi: ['Pair', 'Straight', 'Flush', 'Full House', 'Four of a Kind', 'Straight Flush'],
+  bluff: ['Two', 'Ten', 'Jack', 'Queen', 'King', 'Ace'],
+  poker: ['High Card', 'One Pair', 'Two Pair', 'Straight', 'Full House', 'Royal Flush'],
+  uno: ['Number Card', 'Skip', 'Reverse', 'Draw Two', 'Wild', 'Wild Draw Four'],
 };
 
 export function rankLabel(game, tier) {

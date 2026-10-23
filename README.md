@@ -85,16 +85,16 @@ Being bad at a game counts against you, so the GOAT has to be good at lots of ga
 
 ## Ranks
 
-Each game has its own ladder of six ranks, lowest first. The thresholds are the same for every game, relative to the starting rating (1000). Each game's leaderboard shows its ladder under the tabs.
+Each game has its own ladder of six ranks, lowest first, named after real hands or cards from that game. The thresholds are the same for every game, relative to the starting rating (1000). Each game's leaderboard shows its ladder under the tabs.
 
 | Rating | ♠ Bridge | 🀄 Mahjong | 2♠ Dai Di | 🤥 Bluff | 💰 Poker | 🔄 Uno |
 | ------ | -------- | ---------- | --------- | -------- | -------- | ------ |
-| below 920 | ♣ Clubs | 🎁 Tile Donor | 😵 Stuck With 13 | 📖 Open Book | 🐴 Donkey | 🤐 Forgot to Say UNO |
-| 920–999 | ♦ Diamonds | 🐔 Chicken Hand | 3♦ Opener | 😰 Sweaty Palms | 🐟 Fish | ⏭ Skipped |
-| 1000–1079 | ♥ Hearts | 🀄 Pung Pal | 👯 Pair Pusher | 😐 Poker Face | 📞 Calling Station | 🔄 Reverse |
-| 1080–1159 | ♠ Spades | 🀫 Kong Artist | 📏 Straight Shooter | 🐍 Smooth Liar | ⚙️ Grinder | +2 Menace |
-| 1160–1239 | No Trump | 🐉 Dragon Lord | 💣 Bomb Squad | 🎭 Con Artist | 🦈 Shark | +4 Villain |
-| 1240+ | Grand Slam | 👑 Thirteen Wonders | 2♠ Big Two | 🤥 Pathological | 👑 Royal Flush | 🌈 Wild Card |
+| below 920 | ♣ Clubs | Chicken Hand | Pair | Two | High Card | Number Card |
+| 920–999 | ♦ Diamonds | Ping Hu | Straight | Ten | One Pair | Skip |
+| 1000–1079 | ♥ Hearts | Half Flush | Flush | Jack | Two Pair | Reverse |
+| 1080–1159 | ♠ Spades | All Pungs | Full House | Queen | Straight | Draw Two |
+| 1160–1239 | No Trump | Full Flush | Four of a Kind | King | Full House | Wild |
+| 1240+ | Grand Slam | Thirteen Wonders | Straight Flush | Ace | Royal Flush | Wild Draw Four |
 
 Names live in `src/ranks.js`.
 
