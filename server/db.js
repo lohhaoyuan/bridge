@@ -53,6 +53,23 @@ const SCHEMA = [
     player_id  INTEGER UNIQUE REFERENCES players(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS matches (
+    id         INTEGER PRIMARY KEY,
+    type       TEXT NOT NULL,
+    played_at  TEXT NOT NULL,
+    details    TEXT NOT NULL DEFAULT '{}',
+    notes      TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS match_players (
+    match_id  INTEGER NOT NULL REFERENCES matches(id),
+    player_id INTEGER NOT NULL REFERENCES players(id),
+    seat      INTEGER NOT NULL,
+    place     INTEGER NOT NULL,
+    value     INTEGER,
+    role      TEXT,
+    PRIMARY KEY (match_id, player_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS sessions (
     token      TEXT PRIMARY KEY,
     account_id INTEGER NOT NULL REFERENCES accounts(id),
@@ -85,20 +102,30 @@ export async function loadPlayers() {
   return rows.map((p) => ({ ...p, active: !!p.active }));
 }
 
-export async function loadGames() {
-  const [gameRs, seatRs] = await db.batch(
+// Every recorded match across all games. Bridge lives in the original games
+// tables (uid "b<id>"); every other game in matches (uid "m<id>").
+export async function loadMatches() {
+  const [gameRs, seatRs, matchRs, resultRs] = await db.batch(
     [
-      'SELECT id, played_at AS playedAt, result, notes FROM games',
+      'SELECT id, played_at AS playedAt, result, notes, created_at AS createdAt FROM games',
       'SELECT game_id, player_id, team, hands FROM game_players ORDER BY seat',
+      'SELECT id, type, played_at AS playedAt, details, notes, created_at AS createdAt FROM matches',
+      'SELECT match_id, player_id, place, value, role FROM match_players ORDER BY seat',
     ],
     'read',
   );
-  const games = toObjects(gameRs).map((g) => ({ ...g, teamA: [], teamB: [] }));
-  const byId = new Map(games.map((g) => [g.id, g]));
+  const bridge = toObjects(gameRs).map((g) => ({ ...g, uid: `b${g.id}`, type: 'bridge', teamA: [], teamB: [] }));
+  const bridgeById = new Map(bridge.map((g) => [g.id, g]));
   for (const r of toObjects(seatRs)) {
-    byId.get(r.game_id)?.[r.team === 'A' ? 'teamA' : 'teamB'].push({ id: r.player_id, hands: r.hands });
+    bridgeById.get(r.game_id)?.[r.team === 'A' ? 'teamA' : 'teamB'].push({ id: r.player_id, hands: r.hands });
   }
-  return games;
+
+  const others = toObjects(matchRs).map((m) => ({ ...m, uid: `m${m.id}`, details: JSON.parse(m.details), players: [] }));
+  const otherById = new Map(others.map((m) => [m.id, m]));
+  for (const r of toObjects(resultRs)) {
+    otherById.get(r.match_id)?.players.push({ id: r.player_id, place: r.place, value: r.value, role: r.role });
+  }
+  return [...bridge, ...others];
 }
 
 // A batch runs as one transaction, so MAX(id) is the game inserted just before.
@@ -117,7 +144,37 @@ export async function insertGame(g) {
   );
 }
 
-export async function deleteGame(id) {
+// Same MAX(id) trick as insertGame: the batch is one transaction.
+export async function insertMatch(m) {
+  await db.batch(
+    [
+      {
+        sql: 'INSERT INTO matches (type, played_at, details, notes) VALUES (?, ?, ?, ?)',
+        args: [m.type, m.playedAt, JSON.stringify(m.details), m.notes],
+      },
+      ...m.players.map((p, i) => ({
+        sql: `INSERT INTO match_players (match_id, player_id, seat, place, value, role)
+              VALUES ((SELECT MAX(id) FROM matches), ?, ?, ?, ?, ?)`,
+        args: [p.id, i, p.place, p.value, p.role],
+      })),
+    ],
+    'write',
+  );
+}
+
+export async function deleteMatch(uid) {
+  const id = Number(uid.slice(1));
+  if (uid.startsWith('b')) return deleteGame(id);
+  await db.batch(
+    [
+      { sql: 'DELETE FROM match_players WHERE match_id = ?', args: [id] },
+      { sql: 'DELETE FROM matches WHERE id = ?', args: [id] },
+    ],
+    'write',
+  );
+}
+
+async function deleteGame(id) {
   await db.batch(
     [
       { sql: 'DELETE FROM game_players WHERE game_id = ?', args: [id] },

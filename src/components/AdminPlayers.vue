@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { api } from '../api.js';
+import { api, signed } from '../api.js';
 
 const players = ref([]);
 const name = ref('');
@@ -64,7 +64,7 @@ const remove = (p) => {
       <thead>
         <tr>
           <th>Name</th>
-          <th class="right">Rating</th>
+          <th class="right">GOAT</th>
           <th class="right">Games</th>
           <th class="wide">Status</th>
           <th></th>
@@ -85,7 +85,7 @@ const remove = (p) => {
             />
             <span v-else class="name" @click="startEdit(p)">{{ p.name }}</span>
           </td>
-          <td class="right num">{{ p.rating }}</td>
+          <td class="right num">{{ p.games ? signed(p.goat) : '—' }}</td>
           <td class="right num muted">{{ p.games }}</td>
           <td class="wide">
             <span class="tag" :class="p.active ? 'green' : ''">{{ p.active ? 'Active' : 'Inactive' }}</span>

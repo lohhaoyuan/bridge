@@ -1,17 +1,22 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { api } from '../api.js';
 
-const fields = [
+const general = [
   ['initialRating', 'Starting rating', 1],
-  ['kFactor', 'K-factor', 1],
   ['streakBonus', 'Win streak bonus per win', 0.05],
   ['streakCap', 'Max streak wins counted', 1],
   ['placementGames', 'Games before ranked', 1],
   ['placementBoost', 'Placement game multiplier', 0.1],
   ['decayGraceDays', 'Days before decay starts', 1],
   ['decayPerWeek', 'Decay per idle week', 1],
+  ['goatFullGames', 'Games for full GOAT credit', 1],
 ];
+const kFields = ref([]);
+const sections = computed(() => [
+  ['General', general],
+  ['K-factor (how much one game moves ratings)', kFields.value],
+]);
 
 const values = reactive({});
 const limits = ref({});
@@ -22,6 +27,7 @@ onMounted(async () => {
   const meta = await api('/meta');
   Object.assign(values, meta.settings);
   limits.value = meta.limits;
+  kFields.value = meta.games.map((g) => [g.key === 'bridge' ? 'kFactor' : `k.${g.key}`, `${g.icon} ${g.name}`, 1]);
 });
 
 async function save() {
@@ -38,17 +44,20 @@ async function save() {
 
 <template>
   <form class="settings" @submit.prevent="save">
-    <label v-for="[key, label, step] in fields" :key="key" class="line">
-      <span>{{ label }}</span>
-      <input
-        v-model.number="values[key]"
-        type="number"
-        class="input num"
-        :step="step"
-        :min="limits[key]?.[0]"
-        :max="limits[key]?.[1]"
-      />
-    </label>
+    <template v-for="[title, fields] in sections" :key="title">
+      <h2>{{ title }}</h2>
+      <label v-for="[key, label, step] in fields" :key="key" class="line">
+        <span>{{ label }}</span>
+        <input
+          v-model.number="values[key]"
+          type="number"
+          class="input num"
+          :step="step"
+          :min="limits[key]?.[0]"
+          :max="limits[key]?.[1]"
+        />
+      </label>
+    </template>
     <p v-if="error" class="error">{{ error }}</p>
     <div class="actions">
       <span class="muted">{{ status }}</span>
@@ -62,6 +71,9 @@ async function save() {
   max-width: 420px;
   display: flex;
   flex-direction: column;
+}
+h2:first-child {
+  margin-top: 0;
 }
 .line {
   display: flex;

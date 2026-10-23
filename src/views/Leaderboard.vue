@@ -1,27 +1,53 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { api, auth, signed } from '../api.js';
+import { ref, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { api, auth, getMeta, signed } from '../api.js';
 import Flame from '../components/Flame.vue';
 import RankTag from '../components/RankTag.vue';
+import GameTabs from '../components/GameTabs.vue';
 
+const route = useRoute();
+const router = useRouter();
+const games = ref([]);
 const rows = ref(null);
 const error = ref('');
+
+const OVERALL = { key: 'overall', label: 'GOAT', icon: '🐐' };
+const game = computed({
+  get: () => (typeof route.query.game === 'string' ? route.query.game : 'overall'),
+  set: (g) => router.replace({ query: g === 'overall' ? {} : { game: g } }),
+});
+const overall = computed(() => game.value === 'overall');
+const gameDef = (key) => games.value.find((g) => g.key === key);
 
 const ranked = computed(() => rows.value?.filter((p) => p.ranked) ?? []);
 const unranked = computed(() => rows.value?.filter((p) => !p.ranked) ?? []);
 const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
+const isMe = (p) => p.id === auth.account?.player?.id;
+// Games a player has played, best rating first (for the GOAT row chips).
+const playedGames = (p) => Object.entries(p.byGame).sort((a, b) => b[1].rating - a[1].rating);
 
-onMounted(async () => {
-  try {
-    rows.value = await api('/leaderboard');
-  } catch (e) {
-    error.value = e.message;
-  }
-});
+watch(
+  game,
+  async (g) => {
+    error.value = '';
+    rows.value = null;
+    try {
+      const [meta, data] = await Promise.all([getMeta(), api(`/leaderboard?game=${encodeURIComponent(g)}`)]);
+      games.value = meta.games;
+      rows.value = data;
+    } catch (e) {
+      error.value = e.message;
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
   <h1>Leaderboard</h1>
+  <GameTabs v-if="games.length" v-model="game" :games="games" :extra="OVERALL" />
+
   <p v-if="error" class="error">{{ error }}</p>
   <p v-else-if="rows && !rows.length" class="empty">No games yet</p>
   <template v-else-if="rows">
@@ -31,24 +57,42 @@ onMounted(async () => {
           <tr>
             <th class="rank">#</th>
             <th>Player</th>
-            <th>Rank</th>
-            <th class="right">Rating</th>
-            <th class="right">Last</th>
-            <th class="right wide">W–L</th>
-            <th class="right wide">Games</th>
+            <template v-if="overall">
+              <th class="right">GOAT</th>
+              <th class="wide">Games</th>
+            </template>
+            <template v-else>
+              <th>Rank</th>
+              <th class="right">Rating</th>
+              <th class="right">Last</th>
+              <th class="right wide">W–L</th>
+            </template>
+            <th class="right wide">Played</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(p, i) in ranked" :key="p.id" :class="{ me: p.id === auth.account?.player?.id }">
-            <td class="rank num"><span class="medal" :class="['gold', 'silver', 'bronze'][i]">{{ i + 1 }}</span></td>
+          <tr v-for="(p, i) in ranked" :key="p.id" :class="{ me: isMe(p) }">
+            <td class="rank num"><span class="medal" :class="['gold', 'silver', 'bronze'][i]">{{ overall && i === 0 ? '🐐' : i + 1 }}</span></td>
             <td class="who">
               <RouterLink :to="`/players/${p.id}`" class="name">{{ p.name }}</RouterLink>
               <Flame :days="p.streak" />
             </td>
-            <td><RankTag :tier="p.tier" /></td>
-            <td class="right num rating">{{ p.rating }}</td>
-            <td class="right num" :class="cls(p.lastDelta)">{{ signed(Math.round(p.lastDelta)) }}</td>
-            <td class="right num muted wide">{{ p.wins }}–{{ p.losses }}</td>
+            <template v-if="overall">
+              <td class="right num rating">{{ signed(p.goat) }}</td>
+              <td class="wide">
+                <span class="chips">
+                  <span v-for="[g, r] in playedGames(p)" :key="g" class="chip" :title="`${gameDef(g)?.name}: ${r.rating}`">
+                    {{ gameDef(g)?.icon }} <span class="num">{{ r.rating }}</span>
+                  </span>
+                </span>
+              </td>
+            </template>
+            <template v-else>
+              <td><RankTag :tier="p.tier" /></td>
+              <td class="right num rating">{{ p.rating }}</td>
+              <td class="right num" :class="cls(p.lastDelta)">{{ signed(Math.round(p.lastDelta)) }}</td>
+              <td class="right num muted wide">{{ p.wins }}–{{ p.losses }}</td>
+            </template>
             <td class="right num muted wide">{{ p.games }}</td>
           </tr>
         </tbody>
@@ -63,17 +107,17 @@ onMounted(async () => {
             <tr>
               <th>Player</th>
               <th class="right">Placement</th>
-              <th class="right">Rating</th>
+              <th class="right">{{ overall ? 'GOAT' : 'Rating' }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in unranked" :key="p.id" :class="{ me: p.id === auth.account?.player?.id }">
+            <tr v-for="p in unranked" :key="p.id" :class="{ me: isMe(p) }">
               <td class="who">
                 <RouterLink :to="`/players/${p.id}`" class="name">{{ p.name }}</RouterLink>
                 <Flame :days="p.streak" />
               </td>
               <td class="right num muted">{{ p.placement }}</td>
-              <td class="right num faint">{{ p.rating }}</td>
+              <td class="right num faint">{{ overall ? signed(p.goat) : p.rating }}</td>
             </tr>
           </tbody>
         </table>
@@ -99,6 +143,23 @@ onMounted(async () => {
 }
 .rating {
   font-weight: 600;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  font-size: 12px;
+  padding: 0 6px;
+  line-height: 20px;
+  border-radius: 4px;
+  background: var(--gray-bg);
+  color: var(--text-2);
+  white-space: nowrap;
 }
 @media (max-width: 560px) {
   .rank {

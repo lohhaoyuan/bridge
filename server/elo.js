@@ -1,43 +1,58 @@
-// Simple partnership Elo.
+// Multi-game Elo.
 //
-// A pair's strength is the mean rating of its two players. The pair as a whole
-// moves by K * (actual - expected), and that total is split between the partners
-// by hands won: the partner who won more hands gains more on a win and loses
-// less on a loss. With equal hands (or none recorded) the split is 50/50.
+// Every game keeps its own ratings. Bridge is rated as partnerships: a pair's
+// strength is the mean of its two players, the pair moves by 2K(actual − expected),
+// and that total is split between partners by hands won. Every other game is
+// rated pairwise (see games.js): each comparison moves both players by
+//   K · weight · margin · (actual − expected) / √(players − 1)
+// so bigger tables are worth more, but not linearly.
 //
 // To keep it lively:
 //  - a win streak multiplies gains: +`streakBonus` per consecutive win before
-//    this one (up to `streakCap` wins), so hot runs climb fast. The losers pay
-//    the same multiplier, so points stay balanced and hot pairs are dangerous;
+//    this one (up to `streakCap` wins). The losers pay the same multiplier, so
+//    points stay balanced and hot players are dangerous;
 //  - placement games move `placementBoost`× faster, so newcomers find their
 //    level quickly.
 //
 // So that playing less never pays off:
-//  - players are unranked until they finish `placementGames` games;
-//  - after `decayGraceDays` without a game, ratings above the starting rating
-//    drift back down by `decayPerWeek` points per week (never below the start).
+//  - players are unranked in a game until they finish `placementGames` of it;
+//  - after `decayGraceDays` without playing a game, a rating above the starting
+//    rating drifts back down by `decayPerWeek` points per week.
+//
+// GOAT score: each game's rating is turned into "how far above the class
+// average", scaled by that game's spread so every game counts equally, and
+// weighted by experience (full credit after `goatFullGames` games). The sum
+// across games is the GOAT score.
+
+import { GAMES, GAME_KEYS } from './games.js';
 
 export const DEFAULT_SETTINGS = {
   initialRating: 1000,
-  kFactor: 40,
+  kFactor: 40, // bridge (kept under its original key)
+  ...Object.fromEntries(GAME_KEYS.filter((g) => g !== 'bridge').map((g) => [`k.${g}`, GAMES[g].k])),
   streakBonus: 0.1,
   streakCap: 5,
   placementGames: 5,
   placementBoost: 1.5,
   decayGraceDays: 14,
   decayPerWeek: 10,
+  goatFullGames: 10,
 };
 
 export const SETTING_LIMITS = {
   initialRating: [0, 5000],
   kFactor: [1, 200],
+  ...Object.fromEntries(GAME_KEYS.filter((g) => g !== 'bridge').map((g) => [`k.${g}`, [1, 200]])),
   streakBonus: [0, 1],
   streakCap: [0, 20],
   placementGames: [0, 50],
   placementBoost: [1, 5],
   decayGraceDays: [0, 365],
   decayPerWeek: [0, 200],
+  goatFullGames: [1, 100],
 };
+
+export const kFor = (type, s) => (type === 'bridge' ? s.kFactor : s[`k.${type}`]);
 
 // Rank tiers, as offsets from the starting rating (highest first).
 export const TIERS = [
@@ -88,87 +103,146 @@ export function streaks(playDays, today) {
 // --- rating replay -------------------------------------------------------------
 
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
-const byDate = (a, b) => (a.playedAt < b.playedAt ? -1 : a.playedAt > b.playedAt ? 1 : a.id - b.id);
+const byTime = (a, b) =>
+  a.playedAt < b.playedAt ? -1 : a.playedAt > b.playedAt ? 1 : a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
 
-function applyDecay(p, day, s) {
-  if (p.lastDay === null || p.rating <= s.initialRating) return 0;
-  const idle = day - p.lastDay - s.decayGraceDays;
+function applyDecay(r, day, s) {
+  if (r.lastDay === null || r.rating <= s.initialRating) return 0;
+  const idle = day - r.lastDay - s.decayGraceDays;
   if (idle <= 0) return 0;
-  const loss = Math.min(p.rating - s.initialRating, (idle / 7) * s.decayPerWeek);
-  p.rating -= loss;
+  const loss = Math.min(r.rating - s.initialRating, (idle / 7) * s.decayPerWeek);
+  r.rating -= loss;
   return loss;
 }
 
-// Replays every game in order, then decays everyone up to `today` (a day number).
-export function computeRatings(players, games, s, today) {
-  const state = new Map(
-    players.map((p) => [
-      p.id,
-      {
-        ...p,
-        rating: s.initialRating,
-        peak: s.initialRating,
-        games: 0,
-        wins: 0,
-        losses: 0,
-        winStreak: 0,
-        history: [],
-        lastDay: null,
-        playDays: [],
-      },
-    ]),
-  );
+const newRecord = (s) => ({
+  rating: s.initialRating,
+  peak: s.initialRating,
+  games: 0,
+  wins: 0,
+  losses: 0,
+  winStreak: 0,
+  history: [],
+  lastDay: null,
+});
+
+const hotness = (r, s) => 1 + s.streakBonus * Math.min(r.winStreak, s.streakCap);
+
+function record(r, { match, day, delta, won, hot }) {
+  r.rating += delta;
+  r.peak = Math.max(r.peak, r.rating);
+  r.games += 1;
+  r[won ? 'wins' : 'losses'] += 1;
+  r.winStreak = won ? r.winStreak + 1 : 0;
+  r.lastDay = day;
+  r.history.push({ uid: match.uid, playedAt: match.playedAt, rating: r.rating, delta });
+  return { after: r.rating, delta, hot: won && hot > 1 ? hot : null };
+}
+
+function rateBridge(match, rec, s, day) {
+  const k = kFor('bridge', s);
+  const sides = [
+    { team: match.teamA, score: match.result === 'A' ? 1 : 0 },
+    { team: match.teamB, score: match.result === 'B' ? 1 : 0 },
+  ].map((side) => ({ ...side, recs: side.team.map((x) => rec(x.id)), shares: handShares(side.team.map((x) => x.hands)) }));
+
+  const [ra, rb] = sides.map((side) => mean(side.recs.map((r) => r.rating)));
+  sides[0].expected = expected(ra, rb);
+  sides[1].expected = 1 - sides[0].expected;
+  const winners = sides.find((side) => side.score === 1);
+  // Share-weighted streak multiplier of the winning pair, charged to the losers.
+  const winnersHot = winners.recs.reduce((sum, r, i) => sum + winners.shares[i] * hotness(r, s), 0);
+
+  const updates = [];
+  for (const side of sides) {
+    const pairDelta = 2 * k * (side.score - side.expected);
+    side.recs.forEach((r, i) => {
+      // Winners: more hands → bigger share of the gain. Losers: more hands → smaller share of the loss.
+      const won = side.score === 1;
+      const share = won ? side.shares[i] : 1 - side.shares[i];
+      const placement = r.games < s.placementGames ? s.placementBoost : 1;
+      const hot = won ? hotness(r, s) : winnersHot;
+      updates.push([side.team[i].id, r, { delta: pairDelta * share * placement * hot, won, hot }]);
+    });
+  }
+  const players = {};
+  for (const [id, r, u] of updates) players[id] = { before: r.rating, ...record(r, { match, day, ...u }) };
+  return { expectedA: sides[0].expected, players };
+}
+
+function ratePairwise(match, rec, s, day) {
+  const k = kFor(match.type, s);
+  const ids = match.players.map((p) => p.id);
+  const recs = Object.fromEntries(ids.map((id) => [id, rec(id)]));
+  const winnerIds = new Set(match.players.filter((p) => p.place === 1).map((p) => p.id));
+  const norm = Math.sqrt(ids.length - 1);
+  const delta = Object.fromEntries(ids.map((id) => [id, 0]));
+
+  for (const { a, b, s: score, w, m } of GAMES[match.type].pairs(match)) {
+    const ra = recs[a];
+    const rb = recs[b];
+    // The streak of whoever won this comparison raises the stakes for both.
+    const hot = score === 1 ? hotness(ra, s) : score === 0 ? hotness(rb, s) : 1;
+    const d = (k * w * m * hot * (score - expected(ra.rating, rb.rating))) / norm;
+    delta[a] += d;
+    delta[b] -= d;
+  }
+
+  const updates = ids.map((id) => {
+    const r = recs[id];
+    const placement = r.games < s.placementGames ? s.placementBoost : 1;
+    return [id, r, { delta: delta[id] * placement, won: winnerIds.has(id), hot: hotness(r, s) }];
+  });
+  const players = {};
+  for (const [id, r, u] of updates) players[id] = { before: r.rating, ...record(r, { match, day, ...u }) };
+  return { players };
+}
+
+// Replays every match in order, then decays everyone up to `today` (a day number).
+export function computeRatings(players, matches, s, today) {
+  const people = new Map(players.map((p) => [p.id, { ...p, byGame: {}, playDays: [] }]));
   const changes = new Map();
 
-  for (const g of [...games].sort(byDate)) {
-    const day = dayNumber(g.playedAt);
-    const sides = [
-      { team: g.teamA.map((x) => ({ p: state.get(x.id), hands: x.hands })), score: g.result === 'A' ? 1 : 0 },
-      { team: g.teamB.map((x) => ({ p: state.get(x.id), hands: x.hands })), score: g.result === 'B' ? 1 : 0 },
-    ];
-    for (const side of sides) for (const { p } of side.team) applyDecay(p, day, s);
+  for (const match of [...matches].sort(byTime)) {
+    const day = dayNumber(match.playedAt);
+    const rec = (id) => {
+      const person = people.get(id);
+      const r = (person.byGame[match.type] ??= newRecord(s));
+      applyDecay(r, day, s);
+      person.playDays.push(day);
+      return r;
+    };
+    changes.set(match.uid, match.type === 'bridge' ? rateBridge(match, rec, s, day) : ratePairwise(match, rec, s, day));
+  }
 
-    const [ra, rb] = sides.map((side) => mean(side.team.map((x) => x.p.rating)));
-    const ea = expected(ra, rb);
-    sides[0].expected = ea;
-    sides[1].expected = 1 - ea;
-
-    for (const side of sides) side.shares = handShares(side.team.map((x) => x.hands));
-    const hotness = (p) => 1 + s.streakBonus * Math.min(p.winStreak, s.streakCap);
-    const winners = sides.find((side) => side.score === 1);
-    // Share-weighted streak multiplier of the winning pair, charged to the losers.
-    const winnersHot = winners.team.reduce((sum, { p }, i) => sum + winners.shares[i] * hotness(p), 0);
-
-    const entry = { expectedA: ea, players: {} };
-    for (const side of sides) {
-      const pairDelta = 2 * s.kFactor * (side.score - side.expected);
-      side.team.forEach(({ p }, i) => {
-        // Winners: more hands → bigger share of the gain. Losers: more hands → smaller share of the loss.
-        const won = side.score === 1;
-        const share = won ? side.shares[i] : 1 - side.shares[i];
-        const placement = p.games < s.placementGames ? s.placementBoost : 1;
-        const hot = won ? hotness(p) : winnersHot;
-        const delta = pairDelta * share * placement * hot;
-        const before = p.rating;
-        p.rating += delta;
-        p.peak = Math.max(p.peak, p.rating);
-        p.games += 1;
-        p[won ? 'wins' : 'losses'] += 1;
-        p.winStreak = won ? p.winStreak + 1 : 0;
-        p.lastDay = day;
-        p.playDays.push(day);
-        p.history.push({ gameId: g.id, playedAt: g.playedAt, rating: p.rating, delta });
-        entry.players[p.id] = { before, after: p.rating, delta, hot: hot > 1 ? hot : null };
-      });
+  for (const person of people.values()) {
+    for (const r of Object.values(person.byGame)) {
+      r.decay = applyDecay(r, today, s);
+      r.ranked = r.games >= s.placementGames;
+      r.tier = r.ranked ? tierFor(r.rating, s) : null;
     }
-    changes.set(g.id, entry);
+    person.streak = streaks(person.playDays, today);
+    person.games = Object.values(person.byGame).reduce((n, r) => n + r.games, 0);
+    person.wins = Object.values(person.byGame).reduce((n, r) => n + r.wins, 0);
   }
 
-  for (const p of state.values()) {
-    p.decay = applyDecay(p, today, s);
-    p.ranked = p.games >= s.placementGames;
-    p.tier = p.ranked ? tierFor(p.rating, s) : null;
-    p.streak = streaks(p.playDays, today);
+  // GOAT: per-game z-scores (spread floored at K so tiny classes don't blow up), weighted by experience.
+  const spread = {};
+  for (const g of GAME_KEYS) {
+    const rs = [...people.values()].map((p) => p.byGame[g]).filter(Boolean).map((r) => r.rating);
+    const mu = rs.length ? mean(rs) : s.initialRating;
+    const sd = rs.length > 1 ? Math.sqrt(mean(rs.map((x) => (x - mu) ** 2))) : 0;
+    spread[g] = { mu, sd: Math.max(sd, kFor(g, s)) };
   }
-  return { ratings: state, changes };
+  for (const person of people.values()) {
+    person.goatParts = {};
+    for (const [g, r] of Object.entries(person.byGame)) {
+      const weight = Math.min(1, r.games / s.goatFullGames);
+      person.goatParts[g] = (100 * weight * (r.rating - spread[g].mu)) / spread[g].sd;
+    }
+    person.goat = Object.values(person.goatParts).reduce((a, b) => a + b, 0);
+    person.ranked = person.games >= s.placementGames;
+  }
+
+  return { people, changes };
 }

@@ -51,22 +51,41 @@ Tables are created automatically on the first request.
 | `APP_TIMEZONE`       | `Asia/Singapore` (for streaks) |
 | `API_PORT`           | `3001` (local only)            |
 
-## Rating
+## Games and rating
 
-Ratings are replayed from the full game history on every request, so deleting a game or changing a setting recalculates everything.
+Every game has its own rating. Ratings are replayed from the full history on every request, so deleting a game or changing a setting recalculates everything.
 
-1. Pair rating = average of the two partners. Chance Team A wins: `E = 1 / (1 + 10^((Rb − Ra)/400))`.
-2. The pair's total change is `2K × (result − E)`, where result is 1 for a win and 0 for a loss. K is 40.
-3. That total is split by hands won. Partner share `w = (hands + 1) / (pair's hands + 2)`.
-   - Winners get `w` of the gain. The partner who won more hands gains more.
-   - Losers take `1 − w` of the loss. The partner who won more hands loses less.
-4. **Win streaks:** each win in a row before this one adds +10% to a player's gain, up to +50% after 5 straight wins. The losing pair pays the same multiplier, so points stay balanced. Game lists show it as an orange `×1.2` badge.
-5. **Placement:** players are unranked until they've played 5 games, and those games move 1.5× faster so newcomers find their level quickly.
-6. **Inactivity decay:** after 14 days without a game, a rating above the starting rating drops 10 points per week. It never goes below the starting rating.
+| Game | Players | Recorded | Rating |
+| ---- | ------- | -------- | ------ |
+| ♠ Bridge | 4 (2v2) | winning pair, hands won | pair rating = partners' average; pair moves `2K × (result − E)`, split by hands won (`(hands + 1) / (pair's hands + 2)`) |
+| 🀄 Mahjong | 3–4 | one hand: winner, self-drawn or shooter, tai | self-drawn: winner beats everyone equally; off a discard the shooter takes most of the loss (weight 1.5 vs 0.25); +10% per tai above 1, up to ×2 |
+| 2♠ Dai Di | 3–4 | winner, cards left | losers ranked by cards left; bigger card gap = bigger swing (up to ×2) |
+| 🤥 Bluff | 3–10 | winner, cards left (optional) | winner vs everyone counts fully, the rest 30% |
+| 💰 Texas Poker | 2–10 | finishing order | every place counts fully |
+| 🔄 Uno | 2–10 | winner, points left | like Bluff, scaled by Uno points |
+
+Free-for-all games compare every pair of players: each comparison moves both by `K × weight × margin × (result − E) / √(players − 1)`, with `E = 1 / (1 + 10^((Rb − Ra)/400))`. Bigger tables are worth more, but not linearly.
+
+Shared rules, all editable under Admin → Settings:
+
+- **K per game:** Bridge 40, Mahjong 20 (per hand), the rest 24.
+- **Win streaks:** each straight win in that game adds +10% to the next gain (max +50%). The losers pay the same multiplier, so points stay balanced. Shown as an orange `×1.2` badge.
+- **Placement:** unranked in a game until 5 games of it; those games move 1.5× faster.
+- **Inactivity decay:** after 14 days without playing a game, a rating above the start drops 10 points a week, never below the start.
+
+## GOAT score
+
+The overall leaderboard ranks players by GOAT score, so the winner is whoever is strongest across the most games.
+
+1. For each game, take how far the player's rating is from that game's class average, divided by the spread of ratings in that game. Every game then counts equally, whatever its K.
+2. Multiply by experience: full credit after 10 games of that game, partial before.
+3. Add up across every game played, ×100.
+
+Being bad at a game counts against you, so the GOAT has to be good at lots of games, not just play lots.
 
 ## Ranks
 
-Rank thresholds are relative to the starting rating (1000):
+Each game has its own rank, relative to the starting rating (1000):
 
 | Rank       | Rating range |
 | ---------- | ------------ |

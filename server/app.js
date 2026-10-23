@@ -1,7 +1,8 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import { db, init, all, get, run, getSettings, saveSettings, loadPlayers, loadGames, insertGame, deleteGame } from './db.js';
+import { db, init, all, get, run, getSettings, saveSettings, loadPlayers, loadMatches, insertGame, insertMatch, deleteMatch } from './db.js';
 import { computeRatings, dayNumber, SETTING_LIMITS } from './elo.js';
+import { GAMES, publicGames, parseMatchBody } from './games.js';
 import { GOOGLE_ENABLED, DEV_LOGIN, googleAuthUrl, exchangeCode, signIn, accountForToken } from './auth.js';
 
 const TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Singapore';
@@ -18,62 +19,81 @@ class HttpError extends Error {
 const round1 = (x) => Math.round(x * 10) / 10;
 const today = () => dayNumber(new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE }));
 
-async function snapshot(extraGame) {
-  const [settings, players, games] = await Promise.all([getSettings(), loadPlayers(), loadGames()]);
-  if (extraGame) games.push(extraGame);
-  return { settings, players, games, ...computeRatings(players, games, settings, today()) };
+async function snapshot(extraMatch) {
+  const [settings, players, matches] = await Promise.all([getSettings(), loadPlayers(), loadMatches()]);
+  if (extraMatch) matches.push(extraMatch);
+  return { settings, players, matches, ...computeRatings(players, matches, settings, today()) };
 }
 
-function playerSummary(p, s) {
-  const last = p.history.at(-1);
+// One player's record in one game.
+function gameSummary(r, s) {
+  const last = r.history.at(-1);
   return {
-    id: p.id,
-    name: p.name,
-    discord: p.discord,
-    active: p.active,
-    rating: Math.round(p.rating),
-    peak: Math.round(p.peak),
-    games: p.games,
-    wins: p.wins,
-    losses: p.losses,
-    ranked: p.ranked,
-    placement: p.ranked ? null : `${p.games}/${s.placementGames}`,
-    tier: p.tier,
-    decay: Math.round(p.decay),
-    streak: p.streak.current,
-    bestStreak: p.streak.best,
+    rating: Math.round(r.rating),
+    peak: Math.round(r.peak),
+    games: r.games,
+    wins: r.wins,
+    losses: r.losses,
+    ranked: r.ranked,
+    placement: r.ranked ? null : `${r.games}/${s.placementGames}`,
+    tier: r.tier,
+    decay: Math.round(r.decay),
     lastPlayed: last?.playedAt ?? null,
     lastDelta: last ? round1(last.delta) : null,
   };
 }
 
-function gameView(g, snap) {
-  const change = snap.changes.get(g.id);
-  const side = (team) =>
-    team.map(({ id, hands }) => {
-      const c = change.players[id];
-      return {
-        id,
-        name: snap.ratings.get(id).name,
-        hands,
-        before: Math.round(c.before),
-        after: Math.round(c.after),
-        delta: round1(c.delta),
-        hot: c.hot && c.delta > 0 ? Math.round(c.hot * 10) / 10 : null,
-      };
-    });
+function personSummary(p, s) {
   return {
-    id: g.id,
-    playedAt: g.playedAt,
-    result: g.result,
-    notes: g.notes,
-    expectedA: round1(change.expectedA * 100),
-    teamA: side(g.teamA),
-    teamB: side(g.teamB),
+    id: p.id,
+    name: p.name,
+    discord: p.discord,
+    active: p.active,
+    games: p.games,
+    wins: p.wins,
+    ranked: p.ranked,
+    placement: p.ranked ? null : `${p.games}/${s.placementGames}`,
+    goat: Math.round(p.goat),
+    streak: p.streak.current,
+    bestStreak: p.streak.best,
+    byGame: Object.fromEntries(Object.entries(p.byGame).map(([g, r]) => [g, gameSummary(r, s)])),
   };
 }
 
-const newestFirst = (a, b) => (a.playedAt < b.playedAt ? 1 : a.playedAt > b.playedAt ? -1 : b.id - a.id);
+function matchView(m, snap) {
+  const change = snap.changes.get(m.uid);
+  const person = (id, extra) => {
+    const c = change.players[id];
+    return {
+      id,
+      name: snap.people.get(id).name,
+      ...extra,
+      before: Math.round(c.before),
+      after: Math.round(c.after),
+      delta: round1(c.delta),
+      hot: c.hot && c.delta > 0 ? round1(c.hot) : null,
+    };
+  };
+  const base = { uid: m.uid, type: m.type, playedAt: m.playedAt, notes: m.notes };
+  if (m.type === 'bridge') {
+    return {
+      ...base,
+      result: m.result,
+      expectedA: round1(change.expectedA * 100),
+      teamA: m.teamA.map((x) => person(x.id, { hands: x.hands })),
+      teamB: m.teamB.map((x) => person(x.id, { hands: x.hands })),
+    };
+  }
+  return {
+    ...base,
+    details: m.details,
+    players: [...m.players].sort((a, b) => a.place - b.place).map((x) => person(x.id, { place: x.place, value: x.value, role: x.role })),
+  };
+}
+
+const involves = (m, id) => (m.type === 'bridge' ? [...m.teamA, ...m.teamB] : m.players).some((x) => x.id === id);
+const newestFirst = (a, b) =>
+  a.playedAt < b.playedAt ? 1 : a.playedAt > b.playedAt ? -1 : a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
 
 // --- validation ------------------------------------------------------------
 
@@ -84,9 +104,21 @@ const parseHands = (v) => {
   return n;
 };
 
-function parseGame(body, players) {
+function parseMatch(body, players) {
+  const type = String(body.type ?? 'bridge');
+  if (!GAMES[type]) throw new HttpError(400, 'Unknown game');
   const playedAt = String(body.playedAt ?? '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(playedAt) || isNaN(Date.parse(playedAt))) throw new HttpError(400, 'Invalid date');
+  const notes = String(body.notes ?? '').slice(0, 500);
+  const known = new Set(players.map((p) => p.id));
+
+  if (type !== 'bridge') {
+    try {
+      return { type, playedAt, notes, ...parseMatchBody(type, body, known) };
+    } catch (e) {
+      throw typeof e === 'string' ? new HttpError(400, e) : e;
+    }
+  }
 
   const team = (t) => (Array.isArray(t) ? t : []).map((x) => ({ id: Number(x?.id), hands: parseHands(x?.hands) }));
   const teamA = team(body.teamA);
@@ -94,12 +126,9 @@ function parseGame(body, players) {
   if (teamA.length !== 2 || teamB.length !== 2) throw new HttpError(400, 'Each team needs two players');
   const all = [...teamA, ...teamB].map((x) => x.id);
   if (new Set(all).size !== 4) throw new HttpError(400, 'Players must be different');
-  const known = new Set(players.map((p) => p.id));
   if (!all.every((id) => known.has(id))) throw new HttpError(400, 'Unknown player');
-
   if (!['A', 'B'].includes(body.result)) throw new HttpError(400, 'Pick the winning team');
-
-  return { playedAt, result: body.result, notes: String(body.notes ?? '').slice(0, 500), teamA, teamB };
+  return { type, playedAt, notes, result: body.result, teamA, teamB };
 }
 
 function parseName(v) {
@@ -154,40 +183,61 @@ api.use(async (req, res, next) => {
 });
 
 api.get('/meta', async (req, res) => {
-  res.json({ settings: await getSettings(), limits: SETTING_LIMITS, googleEnabled: GOOGLE_ENABLED, devLogin: DEV_LOGIN });
+  res.json({
+    games: publicGames(),
+    settings: await getSettings(),
+    limits: SETTING_LIMITS,
+    googleEnabled: GOOGLE_ENABLED,
+    devLogin: DEV_LOGIN,
+  });
 });
 
+// ?game=overall (GOAT) or a game key.
 api.get('/leaderboard', async (req, res) => {
+  const game = String(req.query.game || 'overall');
+  if (game !== 'overall' && !GAMES[game]) throw new HttpError(404, 'Unknown game');
   const snap = await snapshot();
-  const rows = [...snap.ratings.values()]
-    .filter((p) => p.active && p.games > 0)
-    .sort((a, b) => b.ranked - a.ranked || b.rating - a.rating)
-    .map((p) => playerSummary(p, snap.settings));
-  res.json(rows);
+  const s = snap.settings;
+  const people = [...snap.people.values()].filter((p) => p.active);
+  if (game === 'overall') {
+    const rows = people.filter((p) => p.games > 0).sort((a, b) => b.ranked - a.ranked || b.goat - a.goat);
+    return res.json(rows.map((p) => personSummary(p, s)));
+  }
+  const rows = people
+    .filter((p) => p.byGame[game])
+    .sort((a, b) => b.byGame[game].ranked - a.byGame[game].ranked || b.byGame[game].rating - a.byGame[game].rating);
+  res.json(rows.map((p) => ({ ...personSummary(p, s), ...gameSummary(p.byGame[game], s) })));
 });
 
 api.get('/players', async (req, res) => {
   const snap = await snapshot();
-  res.json([...snap.ratings.values()].map((p) => playerSummary(p, snap.settings)));
+  res.json([...snap.people.values()].map((p) => personSummary(p, snap.settings)));
 });
 
 api.get('/players/:id', async (req, res) => {
   const snap = await snapshot();
-  const p = snap.ratings.get(Number(req.params.id));
+  const p = snap.people.get(Number(req.params.id));
   if (!p) throw new HttpError(404, 'Player not found');
-  const inGame = (g) => [...g.teamA, ...g.teamB].some((x) => x.id === p.id);
-  const history = [{ rating: snap.settings.initialRating }, ...p.history];
-  if (p.decay > 0) history.push({ rating: p.rating });
+  const history = Object.fromEntries(
+    Object.entries(p.byGame).map(([g, r]) => {
+      const points = [{ rating: snap.settings.initialRating }, ...r.history];
+      if (r.decay > 0) points.push({ rating: r.rating });
+      return [g, points.map((h) => ({ playedAt: h.playedAt, rating: round1(h.rating) }))];
+    }),
+  );
   res.json({
-    player: playerSummary(p, snap.settings),
-    history: history.map((h) => ({ playedAt: h.playedAt, rating: round1(h.rating) })),
-    games: snap.games.filter(inGame).sort(newestFirst).map((g) => gameView(g, snap)),
+    player: personSummary(p, snap.settings),
+    history,
+    matches: snap.matches.filter((m) => involves(m, p.id)).sort(newestFirst).map((m) => matchView(m, snap)),
   });
 });
 
+// ?game=<key> to filter.
 api.get('/games', async (req, res) => {
   const snap = await snapshot();
-  res.json(snap.games.sort(newestFirst).map((g) => gameView(g, snap)));
+  const game = req.query.game ? String(req.query.game) : null;
+  const matches = game ? snap.matches.filter((m) => m.type === game) : snap.matches;
+  res.json(matches.sort(newestFirst).map((m) => matchView(m, snap)));
 });
 
 // --- auth & profile ---
@@ -298,8 +348,10 @@ api.patch('/players/:id', requireAdmin, async (req, res) => {
 
 api.delete('/players/:id', requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  if (await get('SELECT 1 AS ok FROM game_players WHERE player_id = ?', [id]))
-    throw new HttpError(409, 'Player has games. Deactivate instead, or delete their games first.');
+  const played =
+    (await get('SELECT 1 AS ok FROM game_players WHERE player_id = ?', [id])) ||
+    (await get('SELECT 1 AS ok FROM match_players WHERE player_id = ?', [id]));
+  if (played) throw new HttpError(409, 'Player has games. Deactivate instead, or delete their games first.');
   await db.batch(
     [
       { sql: 'UPDATE accounts SET player_id = NULL WHERE player_id = ?', args: [id] },
@@ -352,17 +404,19 @@ api.delete('/accounts/:id', requireAdmin, async (req, res) => {
 });
 
 api.post('/games/preview', requireAdmin, async (req, res) => {
-  const game = { ...parseGame(req.body, await loadPlayers()), id: Number.MAX_SAFE_INTEGER };
-  res.json(gameView(game, await snapshot(game)));
+  const match = { ...parseMatch(req.body, await loadPlayers()), uid: 'preview', createdAt: '9999' };
+  res.json(matchView(match, await snapshot(match)));
 });
 
 api.post('/games', requireAdmin, async (req, res) => {
-  await insertGame(parseGame(req.body, await loadPlayers()));
+  const match = parseMatch(req.body, await loadPlayers());
+  await (match.type === 'bridge' ? insertGame(match) : insertMatch(match));
   res.status(201).json({ ok: true });
 });
 
-api.delete('/games/:id', requireAdmin, async (req, res) => {
-  await deleteGame(Number(req.params.id));
+api.delete('/games/:uid', requireAdmin, async (req, res) => {
+  if (!/^[bm]\d+$/.test(req.params.uid)) throw new HttpError(400, 'Invalid game id');
+  await deleteMatch(req.params.uid);
   res.status(204).end();
 });
 
