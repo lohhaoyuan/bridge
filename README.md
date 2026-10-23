@@ -1,4 +1,4 @@
-# Bridge Elo
+# Zhirui Sucks At Cards
 
 Vue 3 + Vite frontend, Express API, Turso (hosted SQLite) database. Deploys to Vercel.
 

@@ -33,7 +33,7 @@ async function out() {
 <template>
   <div class="app">
     <aside class="sidebar">
-      <RouterLink to="/" class="brand"><span class="logo">♠</span> Bridge Elo</RouterLink>
+      <RouterLink to="/" class="brand"><span class="logo">♠</span> Zhirui Sucks At Cards</RouterLink>
       <nav>
         <RouterLink
           v-for="l in links"

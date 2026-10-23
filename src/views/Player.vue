@@ -27,7 +27,7 @@ watch(
       data.value = d;
       games.value = meta.games;
       chartGame.value = played.value.length === 1 ? played.value[0].key : null;
-      document.title = `${d.player.name} · Bridge Elo`;
+      document.title = `${d.player.name} · Zhirui Sucks At Cards`;
     } catch (e) {
       error.value = e.message;
     }

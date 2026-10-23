@@ -34,6 +34,6 @@ router.beforeEach(async (to) => {
   if (to.meta.admin && !auth.account.isAdmin) return '/';
 });
 
-router.afterEach((to) => (document.title = `${to.meta.title} · Bridge Elo`));
+router.afterEach((to) => (document.title = `${to.meta.title} · Zhirui Sucks At Cards`));
 
 createApp(App).use(router).mount('#app');
