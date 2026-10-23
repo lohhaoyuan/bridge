@@ -96,7 +96,7 @@ vercel --prod
 **Do this straight away**: whoever signs in first becomes admin.
 
 1. Open your site and click **Sign in** (bottom left), then sign in with Google.
-2. On **Me**, enter your name (and your Discord username, if you want) and click **Create player**.
+2. On **Me**, enter your name (and a username, if you want) and click **Create player**.
 3. **Admin** now appears in the sidebar.
 
 ## 6. Get the class on it

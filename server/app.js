@@ -107,10 +107,10 @@ function parseName(v) {
   return name;
 }
 
-// Current Discord usernames, plus legacy name#1234 tags. Empty clears it.
+// Optional handle: Discord-style usernames, plus legacy name#1234 tags. Empty clears it.
 function parseDiscord(v) {
   const tag = String(v ?? '').trim().replace(/^@/, '');
-  if (tag && !/^[A-Za-z0-9_.]{2,32}(#\d{4})?$/.test(tag)) throw new HttpError(400, 'Invalid Discord username');
+  if (tag && !/^[A-Za-z0-9_.]{2,32}(#\d{4})?$/.test(tag)) throw new HttpError(400, 'Invalid username');
   return tag;
 }
 

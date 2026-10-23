@@ -15,7 +15,7 @@ Locally, the sign-in page also has a dev-only email sign-in, so you don't need G
 
 - Players sign in with Google. **The first account to sign in becomes admin.**
 - Admins can make other accounts admins under Admin → Accounts.
-- On the Me page, players set their name and Discord username and see their own stats. If they don't have a player yet, they create one there.
+- On the Me page, players set their name and username and see their own stats. If they don't have a player yet, they create one there.
 - An admin can also link an account to a player they created earlier (Admin → Accounts → Player).
 
 ## Deploy (Turso + Vercel)

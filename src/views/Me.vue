@@ -38,7 +38,7 @@ async function save() {
       <div class="fields">
         <label class="field"><span>Name</span><input v-model="form.name" class="input" maxlength="60" required /></label>
         <label class="field">
-          <span>Discord</span>
+          <span>User</span>
           <input v-model="form.discord" class="input" maxlength="37" placeholder="username" />
         </label>
         <div class="actions">
