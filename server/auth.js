@@ -3,6 +3,8 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { db, get } from './db.js';
 
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+export const GOOGLE_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
 // Email-only sign-in for local development. Never available on Vercel.
 export const DEV_LOGIN = process.env.DEV_LOGIN === '1' && !process.env.VERCEL;
 
@@ -17,6 +19,36 @@ export async function verifyGoogle(credential) {
   });
   if (!payload.email_verified) throw new Error('Google email is not verified');
   return { sub: payload.sub, email: payload.email, name: payload.name ?? '', picture: payload.picture ?? '' };
+}
+
+// Redirect sign-in (authorization code flow): no popups, works in any browser.
+export function googleAuthUrl(redirectUri, state) {
+  const query = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
+    state,
+    prompt: 'select_account',
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
+}
+
+export async function exchangeCode(code, redirectUri) {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error_description || data.error || `Token exchange failed (${res.status})`);
+  return verifyGoogle(data.id_token);
 }
 
 // Upserts the account and opens a session. The very first account becomes admin.

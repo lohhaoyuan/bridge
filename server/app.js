@@ -1,7 +1,8 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import { db, init, all, get, run, getSettings, saveSettings, loadPlayers, loadGames, insertGame, deleteGame } from './db.js';
 import { computeRatings, dayNumber, SETTING_LIMITS } from './elo.js';
-import { GOOGLE_CLIENT_ID, DEV_LOGIN, verifyGoogle, signIn, accountForToken } from './auth.js';
+import { GOOGLE_ENABLED, DEV_LOGIN, googleAuthUrl, exchangeCode, signIn, accountForToken } from './auth.js';
 
 const TIMEZONE = process.env.APP_TIMEZONE || 'Asia/Singapore';
 
@@ -152,7 +153,7 @@ api.use(async (req, res, next) => {
 });
 
 api.get('/meta', async (req, res) => {
-  res.json({ settings: await getSettings(), limits: SETTING_LIMITS, googleClientId: GOOGLE_CLIENT_ID, devLogin: DEV_LOGIN });
+  res.json({ settings: await getSettings(), limits: SETTING_LIMITS, googleEnabled: GOOGLE_ENABLED, devLogin: DEV_LOGIN });
 });
 
 api.get('/leaderboard', async (req, res) => {
@@ -190,14 +191,48 @@ api.get('/games', async (req, res) => {
 
 // --- auth & profile ---
 
-api.post('/auth/google', async (req, res) => {
-  let profile;
-  try {
-    profile = await verifyGoogle(req.body?.credential);
-  } catch (e) {
-    throw new HttpError(401, e.message);
+// Google redirects back to this exact URL, so it must be listed in the OAuth client's redirect URIs.
+const siteOrigin = (req) =>
+  process.env.APP_URL || `${req.get('x-forwarded-proto') || req.protocol}://${req.get('x-forwarded-host') || req.get('host')}`;
+const callbackUrl = (req) => `${siteOrigin(req)}/api/auth/google/callback`;
+const safeNext = (n) => (typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') ? n : '/me');
+const STATE_COOKIE = 'g_state';
+const stateCookieOptions = { httpOnly: true, sameSite: 'lax', path: '/api/auth/google' };
+
+function readCookie(req, name) {
+  for (const part of (req.get('cookie') || '').split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return decodeURIComponent(v.join('='));
   }
-  res.json({ token: await signIn(profile) });
+  return '';
+}
+
+api.get('/auth/google/start', (req, res) => {
+  if (!GOOGLE_ENABLED) throw new HttpError(404, 'Google sign-in is not configured');
+  const state = crypto.randomBytes(16).toString('hex');
+  const next = Buffer.from(safeNext(req.query.next)).toString('base64url');
+  res.cookie(STATE_COOKIE, `${state}.${next}`, {
+    ...stateCookieOptions,
+    secure: siteOrigin(req).startsWith('https'),
+    maxAge: 10 * 60 * 1000,
+  });
+  res.redirect(googleAuthUrl(callbackUrl(req), state));
+});
+
+// The session token goes back in the URL fragment, which browsers never send to servers.
+api.get('/auth/google/callback', async (req, res) => {
+  const back = (params) => res.redirect(`/signin#${new URLSearchParams(params)}`);
+  const [state, next] = readCookie(req, STATE_COOKIE).split('.');
+  res.clearCookie(STATE_COOKIE, stateCookieOptions);
+  if (req.query.error) return back({ error: req.query.error === 'access_denied' ? 'Sign-in cancelled' : 'Google sign-in failed' });
+  if (!state || state !== req.query.state) return back({ error: 'Sign-in expired, please try again' });
+  try {
+    const token = await signIn(await exchangeCode(String(req.query.code), callbackUrl(req)));
+    back({ token, next: safeNext(Buffer.from(next ?? '', 'base64url').toString()) });
+  } catch (e) {
+    console.error('Google sign-in failed:', e);
+    back({ error: 'Google sign-in failed' });
+  }
 });
 
 api.post('/auth/dev', async (req, res) => {

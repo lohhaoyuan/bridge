@@ -40,10 +40,14 @@ export async function loadAccount() {
   }
 }
 
-export async function signInWith(path, body) {
-  const { token } = await api(path, { method: 'POST', body });
+export async function acceptToken(token) {
   setToken(token);
   await loadAccount();
+}
+
+export async function signInWith(path, body) {
+  const { token } = await api(path, { method: 'POST', body });
+  await acceptToken(token);
 }
 
 export async function signOut() {

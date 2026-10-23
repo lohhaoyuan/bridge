@@ -25,8 +25,8 @@ Full walkthrough: [SETUP.md](SETUP.md). Short version:
 1. Create a database at [turso.tech](https://turso.tech) and copy its **URL** (`libsql://…`) and an **auth token**.
 2. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID**:
    - Type: Web application
-   - Authorised JavaScript origins: your Vercel URL (and `http://localhost:5173` for local testing)
-   - Copy the client ID.
+   - Authorised redirect URI: `https://<your-site>/api/auth/google/callback`
+   - Copy the client ID and client secret.
 3. From this folder:
 
    ```bash
@@ -34,6 +34,7 @@ Full walkthrough: [SETUP.md](SETUP.md). Short version:
    vercel env add TURSO_DATABASE_URL production
    vercel env add TURSO_AUTH_TOKEN production
    vercel env add GOOGLE_CLIENT_ID production
+   vercel env add GOOGLE_CLIENT_SECRET production
    vercel --prod
    ```
 4. Sign in on the live site straight away, so that you're the first account and become admin.
@@ -45,6 +46,8 @@ Tables are created automatically on the first request.
 | `TURSO_DATABASE_URL` | local file `data/bridge.db`    |
 | `TURSO_AUTH_TOKEN`   | —                              |
 | `GOOGLE_CLIENT_ID`   | —                              |
+| `GOOGLE_CLIENT_SECRET` | —                            |
+| `APP_URL`            | from request (sign-in redirect base) |
 | `APP_TIMEZONE`       | `Asia/Singapore` (for streaks) |
 | `API_PORT`           | `3001` (local only)            |
 

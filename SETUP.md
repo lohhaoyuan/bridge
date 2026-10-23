@@ -71,17 +71,21 @@ When it finishes, it prints your site's address, e.g. `https://bridge-elo.vercel
 5. Go to **Clients** (or **Credentials → Create credentials → OAuth client ID**).
    - Application type: **Web application**
    - Name: `Bridge Elo`
-   - **Authorised JavaScript origins**, add:
-     - your Vercel address from step 2, e.g. `https://bridge-elo.vercel.app`
-     - `http://localhost:5173` (for running it on your laptop)
-   - Leave **Authorised redirect URIs** empty.
+   - **Authorised redirect URIs**, add your Vercel address followed by `/api/auth/google/callback`:
+     - e.g. `https://bridge-elo.vercel.app/api/auth/google/callback`
+     - optionally `http://localhost:5173/api/auth/google/callback`, for running it on your laptop
+   - **Authorised JavaScript origins** can stay empty.
    - Click **Create**.
-6. Copy the **Client ID**, which ends in `.apps.googleusercontent.com`. You don't need the client secret.
+6. Copy the **Client ID** (ends in `.apps.googleusercontent.com`) and the **Client secret** (starts with `GOCSPX-`).
+   - The secret is only shown once. If you missed it, open the client and click **Add secret**.
 
 ## 4. Connect Google and redeploy
 
 ```bash
 vercel env add GOOGLE_CLIENT_ID production
+```
+```bash
+vercel env add GOOGLE_CLIENT_SECRET production
 ```
 ```bash
 vercel --prod
@@ -117,7 +121,8 @@ Data lives in Turso, so redeploying never loses anything.
 | Problem | Fix |
 | ------- | --- |
 | Pages load but show "Server error" | Check the Turso URL and token: `vercel env ls`. Then look at the error with `vercel logs <your-site-url>`. |
-| No Google button on Sign in | `GOOGLE_CLIENT_ID` is missing. Add it (step 4) and redeploy. |
-| Google says the origin isn't allowed (`origin_mismatch`) | The exact site address (with `https://`, no trailing `/`) must be in Authorised JavaScript origins. Changes can take a few minutes to apply. |
+| "Google sign-in isn't configured" | `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing. Add it (step 4) and redeploy. |
+| Google shows `redirect_uri_mismatch` | Add the exact URI shown in the error's details to **Authorised redirect URIs**. Changes can take a few minutes to apply. |
+| "Google sign-in failed" right after picking an account | The client secret is wrong. Make a new one in Google Cloud, replace it with `vercel env rm GOOGLE_CLIENT_SECRET production` then `vercel env add …`, and redeploy. |
 | Only some people can sign in | The consent screen isn't published (step 3.4). |
 | Someone else became admin first | Ask them to make you admin under Admin → Accounts. |
