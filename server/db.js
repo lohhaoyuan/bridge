@@ -162,6 +162,41 @@ export async function insertMatch(m) {
   );
 }
 
+// Rewrites a recorded match in place (same id and created_at, so it keeps its
+// spot in the history). The game type can't change.
+export async function updateMatch(uid, m) {
+  const id = Number(uid.slice(1));
+  if (uid.startsWith('b')) {
+    const seat = (team, x, i) => ({
+      sql: 'INSERT INTO game_players (game_id, player_id, team, seat, hands) VALUES (?, ?, ?, ?, ?)',
+      args: [id, x.id, team, i, x.hands],
+    });
+    return db.batch(
+      [
+        { sql: 'UPDATE games SET played_at = ?, result = ?, notes = ? WHERE id = ?', args: [m.playedAt, m.result, m.notes, id] },
+        { sql: 'DELETE FROM game_players WHERE game_id = ?', args: [id] },
+        ...m.teamA.map((x, i) => seat('A', x, i)),
+        ...m.teamB.map((x, i) => seat('B', x, i)),
+      ],
+      'write',
+    );
+  }
+  return db.batch(
+    [
+      {
+        sql: 'UPDATE matches SET played_at = ?, details = ?, notes = ? WHERE id = ?',
+        args: [m.playedAt, JSON.stringify(m.details), m.notes, id],
+      },
+      { sql: 'DELETE FROM match_players WHERE match_id = ?', args: [id] },
+      ...m.players.map((p, i) => ({
+        sql: 'INSERT INTO match_players (match_id, player_id, seat, place, value, role) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [id, p.id, i, p.place, p.value, p.role],
+      })),
+    ],
+    'write',
+  );
+}
+
 export async function deleteMatch(uid) {
   const id = Number(uid.slice(1));
   if (uid.startsWith('b')) return deleteGame(id);

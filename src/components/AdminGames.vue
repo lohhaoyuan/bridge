@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { api, getMeta, signed } from '../api.js';
 import GameTabs from './GameTabs.vue';
 import MatchCard from './MatchCard.vue';
@@ -15,8 +15,29 @@ function blank(game, playedAt = today()) {
   return { ...base, rows: Array.from({ length: Math.max(game.min, Math.min(4, game.max)) }, seat) };
 }
 
+// Loads a recorded match back into the form shape for its game.
+function fromMatch(m, game) {
+  const base = { playedAt: m.playedAt, notes: m.notes ?? '' };
+  const row = (p) => ({ id: p.id, hands: p.hands ?? '', value: p.value ?? '' });
+  if (game.kind === 'bridge') return { ...base, A: m.teamA.map(row), B: m.teamB.map(row), result: m.result };
+  if (game.kind === 'mahjong') {
+    return {
+      ...base,
+      rows: m.players.map(row),
+      winner: m.players.find((p) => p.role === 'winner')?.id ?? '',
+      winType: m.details.winType,
+      shooter: m.players.find((p) => p.role === 'shooter')?.id ?? '',
+      tai: m.details.tai,
+    };
+  }
+  return { ...base, rows: m.players.map((p, i) => ({ ...row(p), value: i === 0 ? '' : (p.value ?? '') })) };
+}
+
 const games = ref([]);
 const type = ref('bridge');
+const editing = ref(null); // the match being edited, or null when adding
+let pendingEdit = null;
+const formEl = ref(null);
 const game = computed(() => games.value.find((g) => g.key === type.value));
 const byKey = computed(() => Object.fromEntries(games.value.map((g) => [g.key, g])));
 const form = ref(blank());
@@ -34,7 +55,7 @@ onMounted(async () => {
   try {
     const [meta, p] = await Promise.all([getMeta(), api('/players')]);
     games.value = meta.games;
-    players.value = p.filter((x) => x.active).sort((a, b) => a.name.localeCompare(b.name));
+    players.value = p.sort((a, b) => a.name.localeCompare(b.name));
     form.value = blank(game.value);
     await loadHistory();
   } catch (e) {
@@ -43,7 +64,9 @@ onMounted(async () => {
 });
 
 watch(type, async () => {
-  form.value = blank(game.value, form.value.playedAt);
+  form.value = pendingEdit ? fromMatch(pendingEdit, game.value) : blank(game.value, form.value.playedAt);
+  if (!pendingEdit) editing.value = null;
+  pendingEdit = null;
   preview.value = null;
   error.value = '';
   await loadHistory().catch((e) => (error.value = e.message));
@@ -52,9 +75,11 @@ watch(type, async () => {
 // Every seat that holds a player in the current form.
 const seats = computed(() => (game.value?.kind === 'bridge' ? [...form.value.A, ...form.value.B] : form.value.rows ?? []));
 const chosen = computed(() => seats.value.filter((s) => s.id !== '').map((s) => s.id));
+// Active players, plus whoever already sits here (so editing an old game with a
+// since-deactivated player still shows them).
 const optionsFor = (s) => {
   const taken = new Set(seats.value.filter((x) => x !== s).map((x) => x.id));
-  return players.value.filter((p) => !taken.has(p.id));
+  return players.value.filter((p) => !taken.has(p.id) && (p.active || p.id === s.id));
 };
 const ratingIn = (p) => p.byGame[type.value]?.rating ?? '—';
 const nameOf = (id) => players.value.find((p) => p.id === id)?.name ?? '';
@@ -70,7 +95,7 @@ function move(i, dir) {
 
 const payload = computed(() => {
   const f = form.value;
-  const base = { type: type.value, playedAt: f.playedAt, notes: f.notes.trim() };
+  const base = { type: type.value, playedAt: f.playedAt, notes: f.notes.trim(), editing: editing.value?.uid };
   const kind = game.value?.kind;
   if (kind === 'bridge') {
     return {
@@ -117,11 +142,36 @@ watch(
 
 const previewPlayers = computed(() => (preview.value ? (preview.value.players ?? [...preview.value.teamA, ...preview.value.teamB]) : []));
 
+async function startEdit(m) {
+  error.value = '';
+  editing.value = m;
+  if (m.type !== type.value) {
+    pendingEdit = m; // the type watcher fills the form once the tab switches
+    type.value = m.type;
+  } else {
+    form.value = fromMatch(m, game.value);
+  }
+  await nextTick();
+  formEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelEdit() {
+  editing.value = null;
+  form.value = blank(game.value, form.value.playedAt);
+  preview.value = null;
+  error.value = '';
+}
+
 async function submit() {
   busy.value = true;
   error.value = '';
   try {
-    await api('/games', { method: 'POST', body: payload.value });
+    if (editing.value) {
+      await api(`/games/${editing.value.uid}`, { method: 'PUT', body: payload.value });
+      editing.value = null;
+    } else {
+      await api('/games', { method: 'POST', body: payload.value });
+    }
     form.value = blank(game.value, form.value.playedAt);
     preview.value = null;
     await loadHistory();
@@ -137,6 +187,7 @@ async function remove(m) {
   if (!confirm(`Delete this ${byKey.value[m.type].name} game from ${m.playedAt} (${names})? Ratings will be recalculated.`)) return;
   try {
     await api(`/games/${m.uid}`, { method: 'DELETE' });
+    if (editing.value?.uid === m.uid) cancelEdit();
     await loadHistory();
   } catch (e) {
     error.value = e.message;
@@ -150,7 +201,11 @@ const placeLabel = (i) => (game.value.kind === 'winner' ? (i === 0 ? 'Winner' : 
 <template>
   <GameTabs v-if="games.length" v-model="type" :games="games" />
 
-  <form v-if="game" class="card" @submit.prevent="submit">
+  <form v-if="game" ref="formEl" class="card" :class="{ editing }" @submit.prevent="submit">
+    <div v-if="editing" class="edit-banner">
+      <span>Editing {{ game.name }} game from {{ editing.playedAt }}</span>
+      <button type="button" class="btn ghost" @click="cancelEdit">Cancel</button>
+    </div>
     <label class="field date"><span>Date</span><input v-model="form.playedAt" type="date" class="input" required /></label>
 
     <!-- Bridge: two pairs -->
@@ -249,13 +304,23 @@ const placeLabel = (i) => (game.value.kind === 'winner' ? (i === 0 ? 'Winner' : 
     <p v-if="error" class="error">{{ error }}</p>
 
     <div class="actions">
-      <button class="btn primary" :disabled="!ready || busy">Add {{ game.name }} game</button>
+      <button class="btn primary" :disabled="!ready || busy">{{ editing ? 'Save changes' : `Add ${game.name} game` }}</button>
     </div>
   </form>
 
   <h2>History</h2>
   <p v-if="!history.length" class="empty">No games yet</p>
-  <MatchCard v-for="m in history" v-else :key="m.uid" :match="m" :games="byKey" deletable @delete="remove" />
+  <MatchCard
+    v-for="m in history"
+    v-else
+    :key="m.uid"
+    :match="m"
+    :games="byKey"
+    deletable
+    :editing="editing?.uid === m.uid"
+    @edit="startEdit"
+    @delete="remove"
+  />
 </template>
 
 <style scoped>
@@ -266,6 +331,24 @@ const placeLabel = (i) => (game.value.kind === 'winner' ? (i === 0 ? 'Winner' : 
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  scroll-margin-top: 72px;
+}
+.card.editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+.edit-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -6px -6px 0;
+  padding: 6px 6px 6px 10px;
+  border-radius: 6px;
+  background: var(--hl);
+  color: var(--hl-text);
+  font-weight: 500;
+  font-size: 13px;
 }
 .field.date {
   align-self: flex-start;

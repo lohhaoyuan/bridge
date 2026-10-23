@@ -5,10 +5,12 @@ import { api, auth, getMeta, signed } from '../api.js';
 import Flame from '../components/Flame.vue';
 import RankTag from '../components/RankTag.vue';
 import GameTabs from '../components/GameTabs.vue';
+import { RANK_NAMES, TIER_KEYS, tierRange } from '../ranks.js';
 
 const route = useRoute();
 const router = useRouter();
 const games = ref([]);
+const initialRating = ref(1000);
 const rows = ref(null);
 const error = ref('');
 
@@ -35,6 +37,7 @@ watch(
     try {
       const [meta, data] = await Promise.all([getMeta(), api(`/leaderboard?game=${encodeURIComponent(g)}`)]);
       games.value = meta.games;
+      initialRating.value = meta.settings.initialRating;
       rows.value = data;
     } catch (e) {
       error.value = e.message;
@@ -47,6 +50,15 @@ watch(
 <template>
   <h1>Leaderboard</h1>
   <GameTabs v-if="games.length" v-model="game" :games="games" :extra="OVERALL" />
+  <div v-if="!overall && RANK_NAMES[game]" class="ladder" aria-label="Ranks, lowest to highest">
+    <template v-for="(tier, i) in TIER_KEYS" :key="tier">
+      <span v-if="i" class="arrow faint">›</span>
+      <span class="step" :title="tierRange(i, initialRating)">
+        <RankTag :tier="tier" :game="game" />
+        <small class="faint num">{{ tierRange(i, initialRating) }}</small>
+      </span>
+    </template>
+  </div>
 
   <p v-if="error" class="error">{{ error }}</p>
   <p v-else-if="rows && !rows.length" class="empty">No games yet</p>
@@ -88,7 +100,7 @@ watch(
               </td>
             </template>
             <template v-else>
-              <td><RankTag :tier="p.tier" /></td>
+              <td><RankTag :tier="p.tier" :game="game" /></td>
               <td class="right num rating">{{ p.rating }}</td>
               <td class="right num" :class="cls(p.lastDelta)">{{ signed(Math.round(p.lastDelta)) }}</td>
               <td class="right num muted wide">{{ p.wins }}–{{ p.losses }}</td>
@@ -143,6 +155,32 @@ watch(
 }
 .rating {
   font-weight: 600;
+}
+.ladder {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: -8px 0 20px;
+  padding-bottom: 2px;
+}
+.ladder::-webkit-scrollbar {
+  display: none;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.step small {
+  font-size: 11px;
+  padding-left: 2px;
+}
+.arrow {
+  line-height: 20px;
 }
 .chips {
   display: flex;

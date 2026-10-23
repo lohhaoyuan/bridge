@@ -85,18 +85,22 @@ Being bad at a game counts against you, so the GOAT has to be good at lots of ga
 
 ## Ranks
 
-Each game has its own rank, relative to the starting rating (1000):
+Each game has its own ladder of six ranks, lowest first. The thresholds are the same for every game, relative to the starting rating (1000). Each game's leaderboard shows its ladder under the tabs.
 
-| Rank       | Rating range |
-| ---------- | ------------ |
-| ♣ Clubs    | below 920    |
-| ♦ Diamonds | 920–999      |
-| ♥ Hearts   | 1000–1079    |
-| ♠ Spades   | 1080–1159    |
-| No Trump   | 1160–1239    |
-| Grand Slam | 1240 and up  |
+| Rating | ♠ Bridge | 🀄 Mahjong | 2♠ Dai Di | 🤥 Bluff | 💰 Poker | 🔄 Uno |
+| ------ | -------- | ---------- | --------- | -------- | -------- | ------ |
+| below 920 | ♣ Clubs | 🎁 Tile Donor | 😵 Stuck With 13 | 📖 Open Book | 🐴 Donkey | 🤐 Forgot to Say UNO |
+| 920–999 | ♦ Diamonds | 🐔 Chicken Hand | 3♦ Opener | 😰 Sweaty Palms | 🐟 Fish | ⏭ Skipped |
+| 1000–1079 | ♥ Hearts | 🀄 Pung Pal | 👯 Pair Pusher | 😐 Poker Face | 📞 Calling Station | 🔄 Reverse |
+| 1080–1159 | ♠ Spades | 🀫 Kong Artist | 📏 Straight Shooter | 🐍 Smooth Liar | ⚙️ Grinder | +2 Menace |
+| 1160–1239 | No Trump | 🐉 Dragon Lord | 💣 Bomb Squad | 🎭 Con Artist | 🦈 Shark | +4 Villain |
+| 1240+ | Grand Slam | 👑 Thirteen Wonders | 2♠ Big Two | 🤥 Pathological | 👑 Royal Flush | 🌈 Wild Card |
 
-In a simulated term (12 players, 120 games), these settings give a typical swing of about ±21 per game, ±37 in close upsets, and ratings spreading from roughly 830 to 1220.
+Names live in `src/ranks.js`.
+
+## Editing games
+
+Admin → Games → **Edit** on any game loads it back into the form, with a live preview of the corrected rating changes. Saving rewrites it in place, so it keeps its spot in the history, and every rating after it is recalculated. The game type can't be changed; delete it and add it again under the right game instead.
 
 ## Appearance
 

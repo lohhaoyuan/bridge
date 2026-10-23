@@ -69,7 +69,7 @@ const toggle = (key) => (chartGame.value = chartGame.value === key ? null : key)
         <div class="gname"><span>{{ g.icon }}</span>{{ g.name }}</div>
         <b class="num">{{ data.player.byGame[g.key].rating }}</b>
         <div class="meta">
-          <RankTag v-if="data.player.byGame[g.key].ranked" :tier="data.player.byGame[g.key].tier" />
+          <RankTag v-if="data.player.byGame[g.key].ranked" :tier="data.player.byGame[g.key].tier" :game="g.key" />
           <span v-else class="tag">{{ data.player.byGame[g.key].placement }}</span>
           <span class="faint num">{{ data.player.byGame[g.key].wins }}–{{ data.player.byGame[g.key].losses }}</span>
         </div>

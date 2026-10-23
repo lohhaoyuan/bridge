@@ -1,18 +1,16 @@
 <script setup>
-defineProps({ tier: { type: String, default: null } });
+import { computed } from 'vue';
+import { rankLabel } from '../ranks.js';
 
-const TIERS = {
-  clubs: ['♣ Clubs', 'gray'],
-  diamonds: ['♦ Diamonds', 'orange'],
-  hearts: ['♥ Hearts', 'red'],
-  spades: ['♠ Spades', 'blue'],
-  notrump: ['No Trump', 'purple'],
-  grandslam: ['Grand Slam', 'gold'],
-};
+const props = defineProps({
+  tier: { type: String, default: null },
+  game: { type: String, default: 'bridge' },
+});
+const rank = computed(() => rankLabel(props.game, props.tier));
 </script>
 
 <template>
-  <span v-if="tier" class="tag" :class="TIERS[tier][1]">{{ TIERS[tier][0] }}</span>
+  <span v-if="rank" class="tag" :class="rank.color">{{ rank.name }}</span>
 </template>
 
 <style scoped>

@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'node:crypto';
-import { db, init, all, get, run, getSettings, saveSettings, loadPlayers, loadMatches, insertGame, insertMatch, deleteMatch } from './db.js';
+import { db, init, all, get, run, getSettings, saveSettings, loadPlayers, loadMatches, insertGame, insertMatch, updateMatch, deleteMatch } from './db.js';
 import { computeRatings, dayNumber, SETTING_LIMITS } from './elo.js';
 import { GAMES, publicGames, parseMatchBody } from './games.js';
 import { GOOGLE_ENABLED, DEV_LOGIN, googleAuthUrl, exchangeCode, signIn, accountForToken } from './auth.js';
@@ -19,9 +19,15 @@ class HttpError extends Error {
 const round1 = (x) => Math.round(x * 10) / 10;
 const today = () => dayNumber(new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE }));
 
+// `extraMatch` is added for previews; if it carries the uid of a recorded match
+// it replaces that one (previewing an edit) and keeps its place in the history.
 async function snapshot(extraMatch) {
-  const [settings, players, matches] = await Promise.all([getSettings(), loadPlayers(), loadMatches()]);
-  if (extraMatch) matches.push(extraMatch);
+  let [settings, players, matches] = await Promise.all([getSettings(), loadPlayers(), loadMatches()]);
+  if (extraMatch) {
+    const original = matches.find((m) => m.uid === extraMatch.uid);
+    if (original) extraMatch.createdAt = original.createdAt;
+    matches = [...matches.filter((m) => m !== original), extraMatch];
+  }
   return { settings, players, matches, ...computeRatings(players, matches, settings, today()) };
 }
 
@@ -403,9 +409,29 @@ api.delete('/accounts/:id', requireAdmin, async (req, res) => {
   res.status(204).end();
 });
 
+const validUid = (uid) => /^[bm]\d+$/.test(uid);
+
+async function existingType(uid) {
+  if (!validUid(uid)) throw new HttpError(400, 'Invalid game id');
+  const row = uid.startsWith('b')
+    ? await get("SELECT 'bridge' AS type FROM games WHERE id = ?", [Number(uid.slice(1))])
+    : await get('SELECT type FROM matches WHERE id = ?', [Number(uid.slice(1))]);
+  if (!row) throw new HttpError(404, 'Game not found');
+  return row.type;
+}
+
+// Body may include `editing: <uid>` to preview a change to a recorded game.
 api.post('/games/preview', requireAdmin, async (req, res) => {
-  const match = { ...parseMatch(req.body, await loadPlayers()), uid: 'preview', createdAt: '9999' };
+  const editing = req.body?.editing ? String(req.body.editing) : null;
+  if (editing && (await existingType(editing)) !== req.body.type) throw new HttpError(400, "Can't change the game type");
+  const match = { ...parseMatch(req.body, await loadPlayers()), uid: editing ?? 'preview', createdAt: '9999' };
   res.json(matchView(match, await snapshot(match)));
+});
+
+api.put('/games/:uid', requireAdmin, async (req, res) => {
+  if ((await existingType(req.params.uid)) !== req.body?.type) throw new HttpError(400, "Can't change the game type");
+  await updateMatch(req.params.uid, parseMatch(req.body, await loadPlayers()));
+  res.status(204).end();
 });
 
 api.post('/games', requireAdmin, async (req, res) => {
@@ -415,7 +441,7 @@ api.post('/games', requireAdmin, async (req, res) => {
 });
 
 api.delete('/games/:uid', requireAdmin, async (req, res) => {
-  if (!/^[bm]\d+$/.test(req.params.uid)) throw new HttpError(400, 'Invalid game id');
+  if (!validUid(req.params.uid)) throw new HttpError(400, 'Invalid game id');
   await deleteMatch(req.params.uid);
   res.status(204).end();
 });

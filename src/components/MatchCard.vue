@@ -7,8 +7,9 @@ const props = defineProps({
   games: { type: Object, required: true }, // key → game definition
   highlight: { type: Number, default: null },
   deletable: { type: Boolean, default: false },
+  editing: { type: Boolean, default: false },
 });
-defineEmits(['delete']);
+defineEmits(['delete', 'edit']);
 
 const game = computed(() => props.games[props.match.type] ?? { name: props.match.type, icon: '' });
 const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
@@ -38,12 +39,16 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
 </script>
 
 <template>
-  <article class="match">
+  <article class="match" :class="{ editing }">
     <header>
       <span class="tag game"><span>{{ game.icon }}</span>{{ game.name }}</span>
       <span class="muted date">{{ formatDate(match.playedAt) }}</span>
       <span v-if="match.notes" class="muted notes">{{ match.notes }}</span>
-      <button v-if="deletable" class="btn ghost danger del" @click="$emit('delete', match)">Delete</button>
+      <span v-if="deletable" class="actions">
+        <span v-if="editing" class="tag editing-tag">Editing</span>
+        <button v-else class="btn ghost" @click="$emit('edit', match)">Edit</button>
+        <button class="btn ghost danger" @click="$emit('delete', match)">Delete</button>
+      </span>
     </header>
 
     <!-- Bridge: winners vs losers -->
@@ -118,8 +123,23 @@ header {
   font-size: 13px;
   font-style: italic;
 }
-.del {
+.actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.match.editing {
+  background: var(--hl-soft);
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 8px;
+}
+.editing-tag {
+  background: var(--hl);
+  color: var(--hl-text);
+  margin-right: 6px;
 }
 .sides {
   display: grid;
