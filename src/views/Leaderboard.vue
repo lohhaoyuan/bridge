@@ -34,8 +34,8 @@ onMounted(async () => {
             <th>Rank</th>
             <th class="right">Rating</th>
             <th class="right">Last</th>
-            <th class="right">W–L</th>
-            <th class="right">Games</th>
+            <th class="right wide">W–L</th>
+            <th class="right wide">Games</th>
           </tr>
         </thead>
         <tbody>
@@ -48,8 +48,8 @@ onMounted(async () => {
             <td><RankTag :tier="p.tier" /></td>
             <td class="right num rating">{{ p.rating }}</td>
             <td class="right num" :class="cls(p.lastDelta)">{{ signed(Math.round(p.lastDelta)) }}</td>
-            <td class="right num muted">{{ p.wins }}–{{ p.losses }}</td>
-            <td class="right num muted">{{ p.games }}</td>
+            <td class="right num muted wide">{{ p.wins }}–{{ p.losses }}</td>
+            <td class="right num muted wide">{{ p.games }}</td>
           </tr>
         </tbody>
       </table>
@@ -62,7 +62,7 @@ onMounted(async () => {
           <thead>
             <tr>
               <th>Player</th>
-              <th class="right">Placement games</th>
+              <th class="right">Placement</th>
               <th class="right">Rating</th>
             </tr>
           </thead>
@@ -99,6 +99,22 @@ onMounted(async () => {
 }
 .rating {
   font-weight: 600;
+}
+@media (max-width: 560px) {
+  .rank {
+    width: 30px;
+  }
+  .who {
+    max-width: 150px;
+  }
+  .name {
+    display: inline-block;
+    max-width: calc(100% - 40px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
 }
 .me td {
   background: var(--mint);

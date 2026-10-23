@@ -153,6 +153,23 @@ h2 {
   margin: 0 -8px;
 }
 
+@media (max-width: 560px) {
+  h1 {
+    font-size: 28px;
+  }
+  .table-wrap {
+    margin: 0;
+  }
+  .table th,
+  .table td {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .wide {
+    display: none;
+  }
+}
+
 /* tags */
 .tag {
   display: inline-block;

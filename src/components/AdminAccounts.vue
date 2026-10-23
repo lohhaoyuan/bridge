@@ -94,6 +94,20 @@ select.input {
   height: 28px;
   min-width: 140px;
 }
+@media (max-width: 560px) {
+  .who img {
+    display: none;
+  }
+  .email {
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  select.input {
+    min-width: 0;
+    max-width: 120px;
+  }
+}
 .you {
   font-size: 13px;
   padding-right: 8px;

@@ -5,7 +5,7 @@ import AdminPlayers from '../components/AdminPlayers.vue';
 import AdminAccounts from '../components/AdminAccounts.vue';
 import AdminSettings from '../components/AdminSettings.vue';
 
-const tabs = { games: 'Games', players: 'Players', accounts: 'Accounts', settings: 'Rating settings' };
+const tabs = { games: 'Games', players: 'Players', accounts: 'Accounts', settings: 'Settings' };
 const tab = ref('games');
 </script>
 
@@ -24,6 +24,7 @@ const tab = ref('games');
 
 <style scoped>
 .tabs {
+  scrollbar-width: none;
   display: flex;
   gap: 4px;
   border-bottom: 1px solid var(--border);

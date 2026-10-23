@@ -9,11 +9,15 @@ defineProps({
 defineEmits(['delete']);
 
 const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
+const sides = (g) =>
+  g.result === 'A'
+    ? [['Winners', g.teamA, true], ['Losers', g.teamB, false]]
+    : [['Winners', g.teamB, true], ['Losers', g.teamA, false]];
 </script>
 
 <template>
   <div class="table-wrap">
-    <table class="table">
+    <table class="table games" :class="{ deletable }">
       <thead>
         <tr>
           <th>Date</th>
@@ -25,16 +29,16 @@ const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
       </thead>
       <tbody>
         <tr v-for="g in games" :key="g.id">
-          <td class="nowrap muted">{{ formatDate(g.playedAt) }}</td>
-          <td v-for="side in g.result === 'A' ? ['teamA', 'teamB'] : ['teamB', 'teamA']" :key="side" :class="{ won: side === (g.result === 'A' ? 'teamA' : 'teamB') }">
-            <div v-for="p in g[side]" :key="p.id" class="player">
+          <td class="date muted">{{ formatDate(g.playedAt) }}</td>
+          <td v-for="[label, team, won] in sides(g)" :key="label" class="side" :class="won ? 'won' : 'lost'" :data-label="label">
+            <div v-for="p in team" :key="p.id" class="player">
               <RouterLink :to="`/players/${p.id}`" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
               <span class="faint hands num" title="Hands won">{{ p.hands }}h</span>
               <span class="num delta" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
             </div>
           </td>
           <td class="muted notes">{{ g.notes }}</td>
-          <td v-if="deletable" class="right">
+          <td v-if="deletable" class="del right">
             <button class="btn ghost danger" @click="$emit('delete', g)">Delete</button>
           </td>
         </tr>
@@ -44,7 +48,7 @@ const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
 </template>
 
 <style scoped>
-.nowrap {
+.date {
   white-space: nowrap;
 }
 .player {
@@ -76,5 +80,86 @@ const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
 .notes {
   font-size: 13px;
   max-width: 240px;
+}
+
+/* Phones: each game becomes a card with winners and losers side by side. */
+@media (max-width: 640px) {
+  .table-wrap {
+    margin: 0;
+    overflow: visible;
+  }
+  .games thead {
+    display: none;
+  }
+  .games,
+  .games tbody {
+    display: block;
+  }
+  .games tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: 'date date' 'win lose' 'notes notes';
+    gap: 6px 8px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .games.deletable tr {
+    grid-template-areas: 'date del' 'win lose' 'notes notes';
+  }
+  .games tbody tr:hover {
+    background: none;
+  }
+  .games td {
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .date {
+    grid-area: date;
+    align-self: center;
+    font-size: 12px;
+  }
+  .del {
+    grid-area: del;
+    justify-self: end;
+  }
+  .side {
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .won {
+    grid-area: win;
+    background: var(--mint);
+  }
+  .lost {
+    grid-area: lose;
+    background: var(--bg-sidebar);
+  }
+  .side::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+    margin-bottom: 2px;
+  }
+  .won::before {
+    color: var(--mint-text);
+  }
+  .player {
+    gap: 6px;
+  }
+  .player a {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .notes {
+    grid-area: notes;
+    max-width: none;
+  }
+  .notes:empty {
+    display: none;
+  }
 }
 </style>

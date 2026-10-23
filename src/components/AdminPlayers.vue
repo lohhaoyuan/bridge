@@ -66,7 +66,7 @@ const remove = (p) => {
           <th>Name</th>
           <th class="right">Rating</th>
           <th class="right">Games</th>
-          <th>Status</th>
+          <th class="wide">Status</th>
           <th></th>
         </tr>
       </thead>
@@ -87,7 +87,7 @@ const remove = (p) => {
           </td>
           <td class="right num">{{ p.rating }}</td>
           <td class="right num muted">{{ p.games }}</td>
-          <td>
+          <td class="wide">
             <span class="tag" :class="p.active ? 'green' : ''">{{ p.active ? 'Active' : 'Inactive' }}</span>
           </td>
           <td class="right nowrap">
