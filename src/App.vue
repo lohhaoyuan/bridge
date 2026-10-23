@@ -95,8 +95,8 @@ async function out() {
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: var(--mint);
-  color: var(--mint-text);
+  background: var(--hl);
+  color: var(--hl-text);
   font-size: 13px;
 }
 
@@ -133,8 +133,8 @@ nav {
 }
 
 .item.on {
-  background: var(--mint);
-  color: var(--mint-text);
+  background: var(--hl);
+  color: var(--hl-text);
 }
 
 .account {
@@ -262,8 +262,8 @@ nav {
   .signin {
     flex-direction: row;
     font-size: 14px;
-    background: var(--mint);
-    color: var(--mint-text);
+    background: var(--hl);
+    color: var(--hl-text);
     padding: 4px 12px;
   }
   .main {

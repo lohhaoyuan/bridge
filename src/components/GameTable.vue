@@ -62,13 +62,13 @@ const sides = (g) =>
   text-decoration-color: var(--text-3);
 }
 .won {
-  background: var(--mint-soft);
+  background: var(--hl-soft);
 }
 .won .player a {
   font-weight: 600;
 }
 .me {
-  background: var(--mint);
+  background: var(--hl);
   border-radius: 3px;
   padding: 0 3px;
   margin: 0 -3px;
@@ -129,7 +129,7 @@ const sides = (g) =>
   }
   .won {
     grid-area: win;
-    background: var(--mint);
+    background: var(--hl);
   }
   .lost {
     grid-area: lose;
@@ -144,7 +144,7 @@ const sides = (g) =>
     margin-bottom: 2px;
   }
   .won::before {
-    color: var(--mint-text);
+    color: var(--hl-text);
   }
   .player {
     gap: 6px;

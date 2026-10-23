@@ -60,8 +60,8 @@ async function save() {
   align-items: flex-start;
   padding: 16px;
   border-radius: 8px;
-  background: var(--mint-soft);
-  border: 1px solid var(--mint-strong);
+  background: var(--hl-soft);
+  border: 1px solid var(--hl-strong);
   margin-bottom: 48px;
 }
 .avatar {

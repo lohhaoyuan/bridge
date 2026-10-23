@@ -117,7 +117,7 @@ onMounted(async () => {
   }
 }
 .me td {
-  background: var(--mint);
+  background: var(--hl);
 }
 .medal {
   display: inline-grid;

@@ -1,6 +1,6 @@
 :root {
   --bg: #ffffff;
-  --bg-sidebar: #f4f7f3;
+  --bg-sidebar: #faf5f8;
   --bg-input: rgba(242, 241, 238, 0.6);
   --text: #37352f;
   --text-2: rgba(55, 53, 47, 0.65);
@@ -9,13 +9,13 @@
   --border-strong: rgba(55, 53, 47, 0.16);
   --hover: rgba(55, 53, 47, 0.06);
   --active: rgba(55, 53, 47, 0.08);
-  --accent: #4f9768;
-  --accent-hover: #3f8159;
-  --mint: #dbeddb;
-  --mint-strong: #c7e3c9;
-  --mint-soft: #f2f8f1;
-  --mint-text: #2b593f;
-  --focus: rgba(79, 151, 104, 0.28);
+  --accent: #d1569a;
+  --accent-hover: #b8447f;
+  --hl: #fadcec;
+  --hl-strong: #f4c3de;
+  --hl-soft: #fdf2f8;
+  --hl-text: #8a2a5e;
+  --focus: rgba(209, 86, 154, 0.28);
   --green: #448361;
   --green-bg: #edf3ec;
   --red: #d44c47;
@@ -35,7 +35,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #191919;
-    --bg-sidebar: #1c201d;
+    --bg-sidebar: #211c1f;
     --bg-input: rgba(255, 255, 255, 0.055);
     --text: rgba(255, 255, 255, 0.81);
     --text-2: rgba(255, 255, 255, 0.46);
@@ -44,13 +44,13 @@
     --border-strong: rgba(255, 255, 255, 0.14);
     --hover: rgba(255, 255, 255, 0.055);
     --active: rgba(255, 255, 255, 0.08);
-    --accent: #5fb07f;
-    --accent-hover: #6fc28f;
-    --mint: rgba(95, 176, 127, 0.2);
-    --mint-strong: rgba(95, 176, 127, 0.3);
-    --mint-soft: rgba(95, 176, 127, 0.07);
-    --mint-text: #9ad8b0;
-    --focus: rgba(95, 176, 127, 0.35);
+    --accent: #e07ab1;
+    --accent-hover: #ea94c3;
+    --hl: rgba(224, 122, 177, 0.2);
+    --hl-strong: rgba(224, 122, 177, 0.3);
+    --hl-soft: rgba(224, 122, 177, 0.07);
+    --hl-text: #f2b3d5;
+    --focus: rgba(224, 122, 177, 0.35);
     --green: #4dab9a;
     --green-bg: rgba(45, 153, 100, 0.2);
     --red: #e16f64;
@@ -92,7 +92,7 @@ h1 {
   display: inline-block;
   padding: 0 6px;
   margin-left: -6px;
-  background: linear-gradient(transparent 58%, var(--mint) 58%, var(--mint) 92%, transparent 92%);
+  background: linear-gradient(transparent 58%, var(--hl) 58%, var(--hl) 92%, transparent 92%);
   font-size: 32px;
   font-weight: 700;
   line-height: 1.2;
@@ -141,7 +141,7 @@ h2 {
 }
 
 .table tbody tr:hover {
-  background: var(--mint-soft);
+  background: var(--hl-soft);
 }
 
 .table .right {

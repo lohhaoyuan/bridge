@@ -336,6 +336,20 @@ api.patch('/accounts/:id', requireAdmin, async (req, res) => {
   res.status(204).end();
 });
 
+// Removes the login only; the player and their games stay (unlinked).
+api.delete('/accounts/:id', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.account.id) throw new HttpError(400, "You can't delete your own account");
+  await db.batch(
+    [
+      { sql: 'DELETE FROM sessions WHERE account_id = ?', args: [id] },
+      { sql: 'DELETE FROM accounts WHERE id = ?', args: [id] },
+    ],
+    'write',
+  );
+  res.status(204).end();
+});
+
 api.post('/games/preview', requireAdmin, async (req, res) => {
   const game = { ...parseGame(req.body, await loadPlayers()), id: Number.MAX_SAFE_INTEGER };
   res.json(gameView(game, await snapshot(game)));

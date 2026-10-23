@@ -89,10 +89,10 @@ h1 {
   background: var(--bg-sidebar);
 }
 .stats > .main-stat {
-  background: var(--mint);
+  background: var(--hl);
 }
 .main-stat b {
-  color: var(--mint-text);
+  color: var(--hl-text);
 }
 .stats span:first-child {
   font-size: 12px;

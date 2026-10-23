@@ -80,14 +80,14 @@ onMounted(async () => {
   height: 40px;
   padding: 0 18px 0 14px;
   border-radius: 999px;
-  border: 1px solid var(--mint-strong);
-  background: var(--mint-soft);
+  border: 1px solid var(--hl-strong);
+  background: var(--hl-soft);
   color: var(--text);
   font-weight: 500;
   transition: background 0.15s, border-color 0.15s;
 }
 .google:hover {
-  background: var(--mint);
+  background: var(--hl);
   border-color: var(--accent);
 }
 .google:focus-visible {

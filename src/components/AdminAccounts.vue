@@ -30,6 +30,18 @@ function toggleAdmin(a) {
   const verb = a.isAdmin ? 'Remove admin access from' : 'Make admin:';
   if (confirm(`${verb} ${a.email}?`)) update(a, { isAdmin: !a.isAdmin });
 }
+
+async function remove(a) {
+  const player = a.playerName ? ` Their player "${a.playerName}" and its games will stay.` : '';
+  if (!confirm(`Delete the account ${a.email}? They'll be signed out.${player}`)) return;
+  error.value = '';
+  try {
+    await api(`/accounts/${a.id}`, { method: 'DELETE' });
+  } catch (e) {
+    error.value = e.message;
+  }
+  await load().catch(() => {});
+}
 </script>
 
 <template>
@@ -41,7 +53,7 @@ function toggleAdmin(a) {
         <tr>
           <th>Account</th>
           <th>Player</th>
-          <th>Role</th>
+          <th class="wide">Role</th>
           <th></th>
         </tr>
       </thead>
@@ -60,11 +72,14 @@ function toggleAdmin(a) {
               <option v-for="p in optionsFor(a)" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </td>
-          <td>
+          <td class="wide">
             <span class="tag" :class="{ blue: a.isAdmin }">{{ a.isAdmin ? 'Admin' : 'Player' }}</span>
           </td>
           <td class="right">
-            <button v-if="!a.me" class="btn ghost" @click="toggleAdmin(a)">{{ a.isAdmin ? 'Remove admin' : 'Make admin' }}</button>
+            <div v-if="!a.me" class="actions">
+              <button class="btn ghost" @click="toggleAdmin(a)">{{ a.isAdmin ? 'Remove admin' : 'Make admin' }}</button>
+              <button class="btn ghost danger" @click="remove(a)">Delete</button>
+            </div>
             <span v-else class="faint you">You</span>
           </td>
         </tr>
@@ -98,18 +113,33 @@ select.input {
   .who img {
     display: none;
   }
-  .email {
+  .who > div {
     max-width: 110px;
+  }
+  .name,
+  .email {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
   select.input {
     min-width: 0;
-    max-width: 120px;
+    max-width: 104px;
   }
 }
 .you {
   font-size: 13px;
   padding-right: 8px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+@media (max-width: 560px) {
+  .actions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
 }
 </style>
