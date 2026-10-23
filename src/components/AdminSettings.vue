@@ -5,7 +5,10 @@ import { api } from '../api.js';
 const fields = [
   ['initialRating', 'Starting rating', 1],
   ['kFactor', 'K-factor', 1],
+  ['streakBonus', 'Win streak bonus per win', 0.05],
+  ['streakCap', 'Max streak wins counted', 1],
   ['placementGames', 'Games before ranked', 1],
+  ['placementBoost', 'Placement game multiplier', 0.1],
   ['decayGraceDays', 'Days before decay starts', 1],
   ['decayPerWeek', 'Decay per idle week', 1],
 ];

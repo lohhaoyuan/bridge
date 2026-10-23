@@ -7,7 +7,9 @@ import Player from './views/Player.vue';
 import Me from './views/Me.vue';
 import SignIn from './views/SignIn.vue';
 import Admin from './views/Admin.vue';
+import Settings from './views/Settings.vue';
 import { auth, loadAccount } from './api.js';
+import './prefs.js';
 import './style.css';
 
 const router = createRouter({
@@ -19,6 +21,7 @@ const router = createRouter({
     { path: '/me', component: Me, meta: { title: 'Me', signedIn: true } },
     { path: '/signin', component: SignIn, meta: { title: 'Sign in' } },
     { path: '/admin', component: Admin, meta: { title: 'Admin', admin: true } },
+    { path: '/settings', component: Settings, meta: { title: 'Settings' } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });

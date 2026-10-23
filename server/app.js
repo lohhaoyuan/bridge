@@ -59,6 +59,7 @@ function gameView(g, snap) {
         before: Math.round(c.before),
         after: Math.round(c.after),
         delta: round1(c.delta),
+        hot: c.hot && c.delta > 0 ? Math.round(c.hot * 10) / 10 : null,
       };
     });
   return {

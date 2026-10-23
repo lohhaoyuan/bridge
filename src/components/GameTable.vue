@@ -35,6 +35,7 @@ const sides = (g) =>
               <RouterLink :to="`/players/${p.id}`" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
               <span class="faint hands num" title="Hands won">{{ p.hands }}h</span>
               <span class="num delta" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
+              <span v-if="p.hot" class="hot num" :title="`Win streak bonus ×${p.hot}`">×{{ p.hot }}</span>
             </div>
           </td>
           <td class="muted notes">{{ g.notes }}</td>
@@ -76,6 +77,14 @@ const sides = (g) =>
 .hands,
 .delta {
   font-size: 12px;
+}
+.hot {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--orange-bg);
+  color: var(--orange);
 }
 .notes {
   font-size: 13px;

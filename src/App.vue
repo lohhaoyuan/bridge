@@ -10,6 +10,8 @@ const ICONS = {
   list: 'M4 6h16M4 12h16M4 18h11',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20a7.5 7.5 0 0 1 15 0',
   shield: 'M12 3l7.5 3v5.5c0 4.7-3.2 8.1-7.5 9.5-4.3-1.4-7.5-4.8-7.5-9.5V6L12 3z',
+  palette:
+    'M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8zM7.5 12.5h.01M9.5 8h.01M14.5 8h.01M17 11.5h.01',
 };
 
 const links = computed(() =>
@@ -18,6 +20,7 @@ const links = computed(() =>
     { to: '/games', label: 'Games', icon: ICONS.list },
     auth.account && { to: '/me', label: 'Me', icon: ICONS.user },
     auth.account?.isAdmin && { to: '/admin', label: 'Admin', icon: ICONS.shield },
+    { to: '/settings', label: 'Settings', icon: ICONS.palette },
   ].filter(Boolean),
 );
 
@@ -186,6 +189,7 @@ nav {
 }
 
 .main {
+  zoom: var(--zoom, 1);
   flex: 1;
   min-width: 0;
   padding: 72px 48px 96px;

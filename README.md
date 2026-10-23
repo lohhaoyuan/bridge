@@ -56,12 +56,13 @@ Tables are created automatically on the first request.
 Ratings are replayed from the full game history on every request, so deleting a game or changing a setting recalculates everything.
 
 1. Pair rating = average of the two partners. Chance Team A wins: `E = 1 / (1 + 10^((Rb − Ra)/400))`.
-2. The pair's total change is `2K × (result − E)`, where result is 1 for a win and 0 for a loss.
+2. The pair's total change is `2K × (result − E)`, where result is 1 for a win and 0 for a loss. K is 40.
 3. That total is split by hands won. Partner share `w = (hands + 1) / (pair's hands + 2)`.
    - Winners get `w` of the gain. The partner who won more hands gains more.
    - Losers take `1 − w` of the loss. The partner who won more hands loses less.
-4. **Placement:** players are unranked until they've played 5 games.
-5. **Inactivity decay:** after 14 days without a game, a rating above the starting rating drops 10 points per week. It never goes below the starting rating.
+4. **Win streaks:** each win in a row before this one adds +10% to a player's gain, up to +50% after 5 straight wins. The losing pair pays the same multiplier, so points stay balanced. Game lists show it as an orange `×1.2` badge.
+5. **Placement:** players are unranked until they've played 5 games, and those games move 1.5× faster so newcomers find their level quickly.
+6. **Inactivity decay:** after 14 days without a game, a rating above the starting rating drops 10 points per week. It never goes below the starting rating.
 
 ## Ranks
 
@@ -69,12 +70,18 @@ Rank thresholds are relative to the starting rating (1000):
 
 | Rank       | Rating range |
 | ---------- | ------------ |
-| ♣ Clubs    | below 950    |
-| ♦ Diamonds | 950–1049     |
-| ♥ Hearts   | 1050–1149    |
-| ♠ Spades   | 1150–1249    |
-| No Trump   | 1250–1349    |
-| Grand Slam | 1350 and up  |
+| ♣ Clubs    | below 920    |
+| ♦ Diamonds | 920–999      |
+| ♥ Hearts   | 1000–1079    |
+| ♠ Spades   | 1080–1159    |
+| No Trump   | 1160–1239    |
+| Grand Slam | 1240 and up  |
+
+In a simulated term (12 players, 120 games), these settings give a typical swing of about ±21 per game, ±37 in close upsets, and ratings spreading from roughly 830 to 1220.
+
+## Appearance
+
+Anyone can open **Settings** to pick a theme (system, light, dark), accent colour, font and text size. Choices are saved per device.
 
 ## Streaks
 

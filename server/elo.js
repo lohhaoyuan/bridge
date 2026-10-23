@@ -5,6 +5,13 @@
 // by hands won: the partner who won more hands gains more on a win and loses
 // less on a loss. With equal hands (or none recorded) the split is 50/50.
 //
+// To keep it lively:
+//  - a win streak multiplies gains: +`streakBonus` per consecutive win before
+//    this one (up to `streakCap` wins), so hot runs climb fast. The losers pay
+//    the same multiplier, so points stay balanced and hot pairs are dangerous;
+//  - placement games move `placementBoost`× faster, so newcomers find their
+//    level quickly.
+//
 // So that playing less never pays off:
 //  - players are unranked until they finish `placementGames` games;
 //  - after `decayGraceDays` without a game, ratings above the starting rating
@@ -12,8 +19,11 @@
 
 export const DEFAULT_SETTINGS = {
   initialRating: 1000,
-  kFactor: 32,
+  kFactor: 40,
+  streakBonus: 0.1,
+  streakCap: 5,
   placementGames: 5,
+  placementBoost: 1.5,
   decayGraceDays: 14,
   decayPerWeek: 10,
 };
@@ -21,18 +31,21 @@ export const DEFAULT_SETTINGS = {
 export const SETTING_LIMITS = {
   initialRating: [0, 5000],
   kFactor: [1, 200],
+  streakBonus: [0, 1],
+  streakCap: [0, 20],
   placementGames: [0, 50],
+  placementBoost: [1, 5],
   decayGraceDays: [0, 365],
   decayPerWeek: [0, 200],
 };
 
 // Rank tiers, as offsets from the starting rating (highest first).
 export const TIERS = [
-  ['grandslam', 350],
-  ['notrump', 250],
-  ['spades', 150],
-  ['hearts', 50],
-  ['diamonds', -50],
+  ['grandslam', 240],
+  ['notrump', 160],
+  ['spades', 80],
+  ['hearts', 0],
+  ['diamonds', -80],
   ['clubs', -Infinity],
 ];
 
@@ -91,7 +104,18 @@ export function computeRatings(players, games, s, today) {
   const state = new Map(
     players.map((p) => [
       p.id,
-      { ...p, rating: s.initialRating, peak: s.initialRating, games: 0, wins: 0, losses: 0, history: [], lastDay: null, playDays: [] },
+      {
+        ...p,
+        rating: s.initialRating,
+        peak: s.initialRating,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        winStreak: 0,
+        history: [],
+        lastDay: null,
+        playDays: [],
+      },
     ]),
   );
   const changes = new Map();
@@ -109,23 +133,32 @@ export function computeRatings(players, games, s, today) {
     sides[0].expected = ea;
     sides[1].expected = 1 - ea;
 
+    for (const side of sides) side.shares = handShares(side.team.map((x) => x.hands));
+    const hotness = (p) => 1 + s.streakBonus * Math.min(p.winStreak, s.streakCap);
+    const winners = sides.find((side) => side.score === 1);
+    // Share-weighted streak multiplier of the winning pair, charged to the losers.
+    const winnersHot = winners.team.reduce((sum, { p }, i) => sum + winners.shares[i] * hotness(p), 0);
+
     const entry = { expectedA: ea, players: {} };
     for (const side of sides) {
       const pairDelta = 2 * s.kFactor * (side.score - side.expected);
-      const shares = handShares(side.team.map((x) => x.hands));
       side.team.forEach(({ p }, i) => {
         // Winners: more hands → bigger share of the gain. Losers: more hands → smaller share of the loss.
-        const share = side.score === 1 ? shares[i] : 1 - shares[i];
-        const delta = pairDelta * share;
+        const won = side.score === 1;
+        const share = won ? side.shares[i] : 1 - side.shares[i];
+        const placement = p.games < s.placementGames ? s.placementBoost : 1;
+        const hot = won ? hotness(p) : winnersHot;
+        const delta = pairDelta * share * placement * hot;
         const before = p.rating;
         p.rating += delta;
         p.peak = Math.max(p.peak, p.rating);
         p.games += 1;
-        p[side.score === 1 ? 'wins' : 'losses'] += 1;
+        p[won ? 'wins' : 'losses'] += 1;
+        p.winStreak = won ? p.winStreak + 1 : 0;
         p.lastDay = day;
         p.playDays.push(day);
         p.history.push({ gameId: g.id, playedAt: g.playedAt, rating: p.rating, delta });
-        entry.players[p.id] = { before, after: p.rating, delta };
+        entry.players[p.id] = { before, after: p.rating, delta, hot: hot > 1 ? hot : null };
       });
     }
     changes.set(g.id, entry);
