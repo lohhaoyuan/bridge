@@ -14,12 +14,16 @@ defineEmits(['delete', 'edit']);
 const game = computed(() => props.games[props.match.type] ?? { name: props.match.type, icon: '' });
 const cls = (d) => (d > 0 ? 'up' : d < 0 ? 'down' : 'faint');
 
-const bridgeSides = computed(() => {
+// Bridge: Team A and Team B in their recorded order, with pre-game odds.
+const bridge = computed(() => {
   const m = props.match;
-  if (m.type !== 'bridge') return [];
-  return m.result === 'A'
-    ? [['Winners', m.teamA, true], ['Losers', m.teamB, false]]
-    : [['Winners', m.teamB, true], ['Losers', m.teamA, false]];
+  if (m.type !== 'bridge') return null;
+  const oddsA = Math.round(m.expectedA);
+  const teams = [
+    { key: 'A', players: m.teamA, won: m.result === 'A', odds: oddsA },
+    { key: 'B', players: m.teamB, won: m.result === 'B', odds: 100 - oddsA },
+  ];
+  return { teams, upset: teams.find((t) => t.won).odds < 40 };
 });
 
 const mahjong = computed(() => {
@@ -43,6 +47,7 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
     <header>
       <span class="tag game"><span>{{ game.icon }}</span>{{ game.name }}</span>
       <span class="muted date">{{ formatDate(match.playedAt) }}</span>
+      <span v-if="bridge?.upset" class="tag upset">Upset</span>
       <span v-if="match.notes" class="muted notes">{{ match.notes }}</span>
       <span v-if="deletable" class="actions">
         <span v-if="editing" class="tag editing-tag">Editing</span>
@@ -51,17 +56,25 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
       </span>
     </header>
 
-    <!-- Bridge: winners vs losers -->
-    <div v-if="match.type === 'bridge'" class="sides">
-      <div v-for="[label, team, won] in bridgeSides" :key="label" class="side" :class="won ? 'won' : 'lost'">
-        <div class="label">{{ label }}</div>
-        <div v-for="p in team" :key="p.id" class="row">
-          <RouterLink :to="`/players/${p.id}`" class="name" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
-          <span class="faint small num" title="Hands won">{{ p.hands }}h</span>
-          <span class="num small" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
-          <span v-if="p.hot" class="hot num" :title="`Win streak bonus ×${p.hot}`">×{{ p.hot }}</span>
+    <!-- Bridge: Team A vs Team B, winner highlighted -->
+    <div v-if="bridge" class="versus">
+      <template v-for="(t, i) in bridge.teams" :key="t.key">
+        <span v-if="i" class="vs">vs</span>
+        <div class="team" :class="t.won ? 'won' : 'lost'">
+          <div class="team-head">
+            <span class="team-name">Team {{ t.key }}</span>
+            <span v-if="t.won" class="badge">🏆 Won</span>
+            <span class="odds num" :title="`Pre-game chance of winning`">{{ t.odds }}%</span>
+          </div>
+          <div v-for="p in t.players" :key="p.id" class="row">
+            <RouterLink :to="`/players/${p.id}`" class="name" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
+            <span class="faint small num" title="Hands won">{{ p.hands }}h</span>
+            <span class="spacer"></span>
+            <span v-if="p.hot" class="hot num" :title="`Win streak bonus ×${p.hot}`">×{{ p.hot }}</span>
+            <span class="num small delta" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
+          </div>
         </div>
-      </div>
+      </template>
     </div>
 
     <!-- Mahjong: one winning hand -->
@@ -140,6 +153,81 @@ header {
   background: var(--hl);
   color: var(--hl-text);
   margin-right: 6px;
+}
+.versus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  max-width: 640px;
+}
+.team {
+  padding: 8px 10px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  min-width: 0;
+}
+.team.won {
+  background: var(--hl);
+  border-color: var(--hl-strong);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.team.lost {
+  background: var(--bg-sidebar);
+}
+.team.lost .name {
+  color: var(--text-2);
+}
+.team-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.team-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.won .team-name {
+  color: var(--hl-text);
+}
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 6px;
+  line-height: 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+}
+.odds {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.vs {
+  align-self: center;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+@media (max-width: 480px) {
+  .versus {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .vs {
+    justify-self: center;
+    line-height: 1;
+  }
+}
+.upset {
+  background: var(--orange-bg);
+  color: var(--orange);
+  font-weight: 600;
 }
 .sides {
   display: grid;
