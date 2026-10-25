@@ -137,7 +137,9 @@ const hotness = (r, s) => 1 + s.streakBonus * Math.min(r.winStreak, s.streakCap)
 // Multiplier for a result whose winner had `winnerExpected` chance of winning.
 const upsetFactor = (winnerExpected, s) => (winnerExpected < s.upsetThreshold ? s.upsetBonus : 1);
 
-function record(r, { match, day, delta, won, hot }) {
+// Applies one result to a player's record. Returns what the match view shows,
+// including which multipliers applied to this player (null when ×1).
+function record(r, { match, day, delta, won, hot, placement = 1, upset = 1 }) {
   r.rating += delta;
   r.peak = Math.max(r.peak, r.rating);
   r.games += 1;
@@ -145,7 +147,8 @@ function record(r, { match, day, delta, won, hot }) {
   r.winStreak = won ? r.winStreak + 1 : 0;
   r.lastDay = day;
   r.history.push({ uid: match.uid, playedAt: match.playedAt, rating: r.rating, delta });
-  return { after: r.rating, delta, hot: won && hot > 1 ? hot : null };
+  const factor = (x) => (x > 1 ? x : null);
+  return { after: r.rating, delta, hot: won ? factor(hot) : null, placement: factor(placement), upset: factor(upset) };
 }
 
 function rateBridge(match, rec, s, day) {
@@ -172,7 +175,7 @@ function rateBridge(match, rec, s, day) {
       const share = won ? side.shares[i] : 1 - side.shares[i];
       const placement = r.games < s.placementGames ? s.placementBoost : 1;
       const hot = won ? hotness(r, s) : winnersHot;
-      updates.push([side.team[i].id, r, { delta: pairDelta * share * placement * hot * upset, won, hot }]);
+      updates.push([side.team[i].id, r, { delta: pairDelta * share * placement * hot * upset, won, hot, placement, upset }]);
     });
   }
   const players = {};
@@ -189,6 +192,7 @@ function ratePairwise(match, rec, s, day) {
   const delta = Object.fromEntries(ids.map((id) => [id, 0]));
 
   let upset = null;
+  const upsetBy = {}; // biggest upset multiplier that touched each player
   for (const { a, b, s: score, w, m } of GAMES[match.type].pairs(match)) {
     const ra = recs[a];
     const rb = recs[b];
@@ -198,6 +202,7 @@ function ratePairwise(match, rec, s, day) {
     const up = score === 1 ? upsetFactor(ea, s) : score === 0 ? upsetFactor(1 - ea, s) : 1;
     // Flag the match when the overall winner pulled off an upset.
     if (up > 1 && (winnerIds.has(a) || winnerIds.has(b))) upset = up;
+    if (up > 1) for (const id of [a, b]) upsetBy[id] = Math.max(up, upsetBy[id] ?? 1);
     const d = (k * w * m * hot * up * (score - ea)) / norm;
     delta[a] += d;
     delta[b] -= d;
@@ -206,7 +211,7 @@ function ratePairwise(match, rec, s, day) {
   const updates = ids.map((id) => {
     const r = recs[id];
     const placement = r.games < s.placementGames ? s.placementBoost : 1;
-    return [id, r, { delta: delta[id] * placement, won: winnerIds.has(id), hot: hotness(r, s) }];
+    return [id, r, { delta: delta[id] * placement, won: winnerIds.has(id), hot: hotness(r, s), placement, upset: upsetBy[id] ?? 1 }];
   });
   const players = {};
   for (const [id, r, u] of updates) players[id] = { before: r.rating, ...record(r, { match, day, ...u }) };

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { formatDate, signed } from '../api.js';
+import Multipliers from './Multipliers.vue';
 
 const props = defineProps({
   match: { type: Object, required: true },
@@ -23,8 +24,11 @@ const bridge = computed(() => {
     { key: 'A', players: m.teamA, won: m.result === 'A', odds: oddsA },
     { key: 'B', players: m.teamB, won: m.result === 'B', odds: 100 - oddsA },
   ];
-  return { teams };
+  // Hands are optional; only show them if any were recorded for this game.
+  const showHands = [...m.teamA, ...m.teamB].some((p) => p.hands > 0);
+  return { teams, showHands };
 });
+const handsLabel = (n) => `${n} hand${n === 1 ? '' : 's'}`;
 
 const mahjong = computed(() => {
   const m = props.match;
@@ -47,7 +51,7 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
     <header>
       <span class="tag game"><span>{{ game.icon }}</span>{{ game.name }}</span>
       <span class="muted date">{{ formatDate(match.playedAt) }}</span>
-      <span v-if="match.upset" class="tag upset" :title="`Underdog win: points ×${match.upset}`">Upset ×{{ match.upset }}</span>
+      <span v-if="match.upset" class="tag upset" :title="`Underdog win: points ×${match.upset}`">⚡ Upset ×{{ match.upset }}</span>
       <span v-if="match.notes" class="muted notes">{{ match.notes }}</span>
       <span v-if="deletable" class="actions">
         <span v-if="editing" class="tag editing-tag">Editing</span>
@@ -68,9 +72,9 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
           </div>
           <div v-for="p in t.players" :key="p.id" class="row">
             <RouterLink :to="`/players/${p.id}`" class="name" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
-            <span class="faint small num" title="Hands won">{{ p.hands }}h</span>
+            <span v-if="bridge.showHands" class="faint small num">{{ handsLabel(p.hands) }}</span>
             <span class="spacer"></span>
-            <span v-if="p.hot" class="hot num" :title="`Win streak bonus ×${p.hot}`">×{{ p.hot }}</span>
+            <Multipliers :p="p" />
             <span class="num small delta" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
           </div>
         </div>
@@ -83,8 +87,9 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
         <div class="label">{{ mahjong.how }} · {{ mahjong.tai }} tai</div>
         <div class="row">
           <RouterLink :to="`/players/${mahjong.winner.id}`" class="name" :class="{ me: mahjong.winner.id === highlight }">{{ mahjong.winner.name }}</RouterLink>
+          <span class="spacer"></span>
+          <Multipliers :p="mahjong.winner" />
           <span class="num small" :class="cls(mahjong.winner.delta)">{{ signed(Math.round(mahjong.winner.delta)) }}</span>
-          <span v-if="mahjong.winner.hot" class="hot num">×{{ mahjong.winner.hot }}</span>
         </div>
       </div>
       <div class="side lost">
@@ -92,6 +97,8 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
         <div v-for="p in mahjong.others" :key="p.id" class="row">
           <RouterLink :to="`/players/${p.id}`" class="name" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
           <span v-if="p.role === 'shooter'" class="tag shooter">shooter</span>
+          <span class="spacer"></span>
+          <Multipliers :p="p" />
           <span class="num small" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
         </div>
       </div>
@@ -104,7 +111,7 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
         <RouterLink :to="`/players/${p.id}`" class="name" :class="{ me: p.id === highlight }">{{ p.name }}</RouterLink>
         <span v-if="unit && p.place > 1 && p.value != null" class="faint small num">{{ p.value }} {{ unit }}</span>
         <span class="spacer"></span>
-        <span v-if="p.hot" class="hot num">×{{ p.hot }}</span>
+        <Multipliers :p="p" />
         <span class="num small delta" :class="cls(p.delta)">{{ signed(Math.round(p.delta)) }}</span>
       </li>
     </ol>
@@ -225,8 +232,8 @@ header {
   }
 }
 .upset {
-  background: var(--orange-bg);
-  color: var(--orange);
+  background: var(--purple-bg);
+  color: var(--purple);
   font-weight: 600;
 }
 .sides {
@@ -283,14 +290,6 @@ header {
 .small {
   font-size: 12px;
   white-space: nowrap;
-}
-.hot {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: var(--orange-bg);
-  color: var(--orange);
 }
 .shooter {
   font-size: 11px;

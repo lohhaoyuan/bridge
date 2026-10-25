@@ -78,6 +78,8 @@ function matchView(m, snap) {
       after: Math.round(c.after),
       delta: round1(c.delta),
       hot: c.hot && c.delta > 0 ? round1(c.hot) : null,
+      upset: c.upset ? round1(c.upset) : null,
+      placement: c.placement ? round1(c.placement) : null,
     };
   };
   const base = { uid: m.uid, type: m.type, playedAt: m.playedAt, notes: m.notes, upset: change.upset };
