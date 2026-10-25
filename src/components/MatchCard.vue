@@ -23,7 +23,7 @@ const bridge = computed(() => {
     { key: 'A', players: m.teamA, won: m.result === 'A', odds: oddsA },
     { key: 'B', players: m.teamB, won: m.result === 'B', odds: 100 - oddsA },
   ];
-  return { teams, upset: teams.find((t) => t.won).odds < 40 };
+  return { teams };
 });
 
 const mahjong = computed(() => {
@@ -47,7 +47,7 @@ const unit = computed(() => (game.value.value ?? '').replace(/ left$/, '').toLow
     <header>
       <span class="tag game"><span>{{ game.icon }}</span>{{ game.name }}</span>
       <span class="muted date">{{ formatDate(match.playedAt) }}</span>
-      <span v-if="bridge?.upset" class="tag upset">Upset</span>
+      <span v-if="match.upset" class="tag upset" :title="`Underdog win: points ×${match.upset}`">Upset ×{{ match.upset }}</span>
       <span v-if="match.notes" class="muted notes">{{ match.notes }}</span>
       <span v-if="deletable" class="actions">
         <span v-if="editing" class="tag editing-tag">Editing</span>

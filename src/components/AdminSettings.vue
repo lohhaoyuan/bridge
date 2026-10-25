@@ -8,6 +8,8 @@ const general = [
   ['streakCap', 'Max streak wins counted', 1],
   ['placementGames', 'Games before ranked', 1],
   ['placementBoost', 'Placement game multiplier', 0.1],
+  ['upsetThreshold', 'Upset if winner’s chance below', 0.05],
+  ['upsetBonus', 'Upset multiplier', 0.1],
   ['decayGraceDays', 'Days before decay starts', 1],
   ['decayPerWeek', 'Decay per idle week', 1],
   ['goatFullGames', 'Games for full GOAT credit', 1],

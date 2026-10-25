@@ -12,7 +12,10 @@
 //    this one (up to `streakCap` wins). The losers pay the same multiplier, so
 //    points stay balanced and hot players are dangerous;
 //  - placement games move `placementBoost`× faster, so newcomers find their
-//    level quickly.
+//    level quickly;
+//  - upsets pay extra: when the winner had under `upsetThreshold` chance, the
+//    change is multiplied by `upsetBonus` for both sides (still balanced). In
+//    free-for-all games this is judged per head-to-head comparison.
 //
 // So that playing less never pays off:
 //  - players are unranked in a game until they finish `placementGames` of it;
@@ -34,6 +37,8 @@ export const DEFAULT_SETTINGS = {
   streakCap: 5,
   placementGames: 5,
   placementBoost: 1.5,
+  upsetThreshold: 0.4,
+  upsetBonus: 1.5,
   decayGraceDays: 14,
   decayPerWeek: 10,
   goatFullGames: 10,
@@ -47,6 +52,8 @@ export const SETTING_LIMITS = {
   streakCap: [0, 20],
   placementGames: [0, 50],
   placementBoost: [1, 5],
+  upsetThreshold: [0, 0.5],
+  upsetBonus: [1, 5],
   decayGraceDays: [0, 365],
   decayPerWeek: [0, 200],
   goatFullGames: [1, 100],
@@ -127,6 +134,8 @@ const newRecord = (s) => ({
 });
 
 const hotness = (r, s) => 1 + s.streakBonus * Math.min(r.winStreak, s.streakCap);
+// Multiplier for a result whose winner had `winnerExpected` chance of winning.
+const upsetFactor = (winnerExpected, s) => (winnerExpected < s.upsetThreshold ? s.upsetBonus : 1);
 
 function record(r, { match, day, delta, won, hot }) {
   r.rating += delta;
@@ -152,6 +161,7 @@ function rateBridge(match, rec, s, day) {
   const winners = sides.find((side) => side.score === 1);
   // Share-weighted streak multiplier of the winning pair, charged to the losers.
   const winnersHot = winners.recs.reduce((sum, r, i) => sum + winners.shares[i] * hotness(r, s), 0);
+  const upset = upsetFactor(winners.expected, s);
 
   const updates = [];
   for (const side of sides) {
@@ -162,12 +172,12 @@ function rateBridge(match, rec, s, day) {
       const share = won ? side.shares[i] : 1 - side.shares[i];
       const placement = r.games < s.placementGames ? s.placementBoost : 1;
       const hot = won ? hotness(r, s) : winnersHot;
-      updates.push([side.team[i].id, r, { delta: pairDelta * share * placement * hot, won, hot }]);
+      updates.push([side.team[i].id, r, { delta: pairDelta * share * placement * hot * upset, won, hot }]);
     });
   }
   const players = {};
   for (const [id, r, u] of updates) players[id] = { before: r.rating, ...record(r, { match, day, ...u }) };
-  return { expectedA: sides[0].expected, players };
+  return { expectedA: sides[0].expected, upset: upset > 1 ? upset : null, players };
 }
 
 function ratePairwise(match, rec, s, day) {
@@ -178,12 +188,17 @@ function ratePairwise(match, rec, s, day) {
   const norm = Math.sqrt(ids.length - 1);
   const delta = Object.fromEntries(ids.map((id) => [id, 0]));
 
+  let upset = null;
   for (const { a, b, s: score, w, m } of GAMES[match.type].pairs(match)) {
     const ra = recs[a];
     const rb = recs[b];
+    const ea = expected(ra.rating, rb.rating);
     // The streak of whoever won this comparison raises the stakes for both.
     const hot = score === 1 ? hotness(ra, s) : score === 0 ? hotness(rb, s) : 1;
-    const d = (k * w * m * hot * (score - expected(ra.rating, rb.rating))) / norm;
+    const up = score === 1 ? upsetFactor(ea, s) : score === 0 ? upsetFactor(1 - ea, s) : 1;
+    // Flag the match when the overall winner pulled off an upset.
+    if (up > 1 && (winnerIds.has(a) || winnerIds.has(b))) upset = up;
+    const d = (k * w * m * hot * up * (score - ea)) / norm;
     delta[a] += d;
     delta[b] -= d;
   }
@@ -195,7 +210,7 @@ function ratePairwise(match, rec, s, day) {
   });
   const players = {};
   for (const [id, r, u] of updates) players[id] = { before: r.rating, ...record(r, { match, day, ...u }) };
-  return { players };
+  return { upset, players };
 }
 
 // Replays every match in order, then decays everyone up to `today` (a day number).

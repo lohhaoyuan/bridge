@@ -80,7 +80,7 @@ function matchView(m, snap) {
       hot: c.hot && c.delta > 0 ? round1(c.hot) : null,
     };
   };
-  const base = { uid: m.uid, type: m.type, playedAt: m.playedAt, notes: m.notes };
+  const base = { uid: m.uid, type: m.type, playedAt: m.playedAt, notes: m.notes, upset: change.upset };
   if (m.type === 'bridge') {
     return {
       ...base,

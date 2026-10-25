@@ -71,6 +71,7 @@ Shared rules, all editable under Admin → Settings:
 - **K per game:** Bridge 40, Mahjong 20 (per hand), the rest 24.
 - **Win streaks:** each straight win in that game adds +10% to the next gain (max +50%). The losers pay the same multiplier, so points stay balanced. Shown as an orange `×1.2` badge.
 - **Placement:** unranked in a game until 5 games of it; those games move 1.5× faster.
+- **Upsets:** when the winner had under a 40% chance, the result counts ×1.5 for both sides (still balanced). Free-for-all games judge this per head-to-head, so beating someone far stronger pays extra. Shown as an **Upset ×1.5** tag.
 - **Inactivity decay:** after 14 days without playing a game, a rating above the start drops 10 points a week, never below the start.
 
 ## GOAT score
